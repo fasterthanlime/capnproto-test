@@ -10,6 +10,7 @@ function main() {
   {
     const frame = frames.get(0);
     const audioFrame = frame.initAudioFrame();
+    audioFrame.setChannels(2);
     audioFrame.setStreamId(69);
     const pts = audioFrame.initPts();
     pts.setNum(1);
