@@ -1,5 +1,5 @@
 const capnp = require("capnp-ts");
-const {Frames} = require("./frames.capnp.js");
+const {Frames} = require("../schema/frames.capnp.js");
 const {writeFileSync} = require("fs");
 
 function main() {
@@ -20,7 +20,9 @@ function main() {
       data.set(j, Math.random()*256);
     }
   }
-  writeFileSync("data.bin", new Int8Array(message.toArrayBuffer()), {encoding: null});
+  let outPath = "data.bin";
+  writeFileSync(outPath, new Int8Array(message.toArrayBuffer()), {encoding: null});
+  console.log(`Wrote file to ${outPath}`);
 }
 
 main();
