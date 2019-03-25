@@ -1,6 +1,10 @@
 
 @0xf707573bf7bf8fda;
 
+using Go = import "/go.capnp";
+$Go.package("frames");
+$Go.import("frames");
+
 struct Rational {
     num @0: UInt32;
     den @1: UInt32;
