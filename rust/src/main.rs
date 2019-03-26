@@ -1,4 +1,6 @@
 extern crate capnp;
+extern crate capnp_rpc;
+extern crate tokio;
 
 use std::fs;
 
@@ -10,7 +12,7 @@ pub mod calculator_capnp {
     include!(concat!("./calculator_capnp.rs"));
 }
 
-fn frames_main() -> ::capnp::Result<()> {
+fn frames_main() -> Result<(), Box<dyn std::error::Error>> {
     use capnp::serialize;
     let mut f = fs::File::open("data.bin")?;
     let message_reader = serialize::read_message(&mut f, ::capnp::message::ReaderOptions::new())?;
@@ -36,11 +38,39 @@ fn frames_main() -> ::capnp::Result<()> {
     Ok(())
 }
 
-fn client_main() -> ::capnp::Result<()> {
-    Err(::capnp::Error {
-        kind: ::capnp::ErrorKind::Failed,
-        description: "unimplemented".to_string(),
-    })
+fn client_main() -> Result<(), Box<dyn std::error::Error>> {
+    use calculator_capnp::calculator;
+    use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
+    use futures::Future;
+    use tokio::io::AsyncRead;
+
+    // Set up async runtime
+    let mut runtime = ::tokio::runtime::current_thread::Runtime::new()?;
+
+    // Establish TCP connection to server
+    let addr = "127.0.0.1:9494";
+    println!("Connecting to server on {}", addr);
+    let connect_attempt = ::tokio::net::TcpStream::connect(&addr.parse()?);
+    let stream = runtime.block_on(connect_attempt)?;
+    stream.set_nodelay(true)?;
+    let (reader, writer) = stream.split();
+
+    // Set up capnp RPC
+    let network = Box::new(twoparty::VatNetwork::new(
+        reader,
+        std::io::BufWriter::new(writer), // for performance (flush between messages)
+        rpc_twoparty_capnp::Side::Client, // we are a client
+        Default::default(),              // no receive options
+    ));
+    let mut rpc_system = RpcSystem::new(network, None);
+
+    // "Bootstrap capabilities", that's cap'n proto stuff.
+    let _calculator: calculator::Client = rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
+
+    // Spawn RPC system in the background
+    runtime.spawn(rpc_system.map_err(|e| println!("Encountered error: {}", e)));
+
+    panic!("at the disco")
 }
 
 fn main() {
