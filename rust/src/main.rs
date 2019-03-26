@@ -6,7 +6,11 @@ pub mod frames_capnp {
     include!(concat!("./frames_capnp.rs"));
 }
 
-fn read_data() -> ::capnp::Result<()> {
+pub mod calculator_capnp {
+    include!(concat!("./calculator_capnp.rs"));
+}
+
+fn frames_main() -> ::capnp::Result<()> {
     use capnp::serialize;
     let mut f = fs::File::open("data.bin")?;
     let message_reader = serialize::read_message(&mut f, ::capnp::message::ReaderOptions::new())?;
@@ -32,6 +36,20 @@ fn read_data() -> ::capnp::Result<()> {
     Ok(())
 }
 
+fn client_main() -> ::capnp::Result<()> {
+    Err(::capnp::Error {
+        kind: ::capnp::ErrorKind::Failed,
+        description: "unimplemented".to_string(),
+    })
+}
+
 fn main() {
-    read_data().expect("reading capnp payload failed")
+    let args: Vec<String> = ::std::env::args().collect();
+    let cmd = &args[1];
+    match cmd.as_ref() {
+        "frames" => frames_main(),
+        "client" => client_main(),
+        _ => panic!(format!("unknown command {}", cmd)),
+    }
+    .expect("command failed")
 }

@@ -7,7 +7,10 @@ import binascii
 
 def readData(file):
     capnp.remove_import_hook()
-    source_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'schema', 'frames.capnp')
+    source_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            '..', 'schema', 'frames.capnp'
+    )
     print('loading schema from', source_path)
     frames_capnp = capnp.load(source_path)
     root = frames_capnp.Frames.read(file)

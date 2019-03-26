@@ -1,7 +1,7 @@
 
 @0xf707573bf7bf8fda;
 
-using Go = import "/go.capnp";
+using Go = import "./go.capnp";
 $Go.package("frames");
 $Go.import("frames");
 
