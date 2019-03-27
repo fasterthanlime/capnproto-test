@@ -1,16 +1,6 @@
-extern crate capnp;
-extern crate capnp_rpc;
-extern crate tokio;
-
+pub mod schema;
+use schema::{calculator_capnp, frames_capnp};
 use std::fs;
-
-pub mod frames_capnp {
-    include!(concat!("./frames_capnp.rs"));
-}
-
-pub mod calculator_capnp {
-    include!(concat!("./calculator_capnp.rs"));
-}
 
 fn frames_main() -> Result<(), Box<dyn std::error::Error>> {
     use capnp::serialize;
@@ -40,6 +30,7 @@ fn frames_main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn client_main() -> Result<(), Box<dyn std::error::Error>> {
     use calculator_capnp::calculator;
+    // use capnp::capability::Promise;
     use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
     use futures::Future;
     use tokio::io::AsyncRead;
@@ -65,12 +56,22 @@ fn client_main() -> Result<(), Box<dyn std::error::Error>> {
     let mut rpc_system = RpcSystem::new(network, None);
 
     // "Bootstrap capabilities", that's cap'n proto stuff.
-    let _calculator: calculator::Client = rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
+    let calculator: calculator::Client = rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
 
     // Spawn RPC system in the background
     runtime.spawn(rpc_system.map_err(|e| println!("Encountered error: {}", e)));
 
-    panic!("at the disco")
+    {
+        let mut request = calculator.evaluate_request();
+        request.get().init_expression().set_literal(123.0);
+        let response = runtime.block_on(request.send().promise)?;
+        println!("Got an (opaque) response!");
+
+        let value = runtime.block_on(response.get()?.get_value()?.read_request().send().promise)?;
+        println!("Value = {}", value.get()?.get_value());
+    }
+    println!("All done!");
+    Ok(())
 }
 
 fn main() {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"io/ioutil"
 	"log"
 	"net"
@@ -13,6 +14,7 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 	capnp "zombiezen.com/go/capnproto2"
 	"zombiezen.com/go/capnproto2/rpc"
+	capnprpc "zombiezen.com/go/capnproto2/std/capnp/rpc"
 )
 
 var (
@@ -23,6 +25,7 @@ var (
 )
 
 func main() {
+	log.SetFlags(0)
 	switch kingpin.MustParse(app.Parse(os.Args[1:])) {
 	case framesCmd.FullCommand():
 		doFrames()
@@ -56,7 +59,7 @@ func (vs valueServer) Read(call calculator.Calculator_Value_read) error {
 type calculatorServer struct{}
 
 func (cs *calculatorServer) DefFunction(call calculator.Calculator_defFunction) error {
-	return errors.New("stub!")
+	return errors.New("defFunction: stub!")
 }
 
 func (cs *calculatorServer) Evaluate(call calculator.Calculator_evaluate) error {
@@ -68,17 +71,48 @@ func (cs *calculatorServer) Evaluate(call calculator.Calculator_evaluate) error 
 	switch expr.Which() {
 	case calculator.Calculator_Expression_Which_literal:
 		vs := valueServer{value: expr.Literal()}
+		log.Printf("Evaluating literal %v", expr.Literal())
 		call.Results.SetValue(calculator.Calculator_Value_ServerToClient(vs))
+		return nil
 	default:
 		return errors.Errorf("don't know how to evaluate %s yet", expr.Which())
 	}
-
-	return errors.New("stub!")
 }
 
 func (cs *calculatorServer) GetOperator(call calculator.Calculator_getOperator) error {
-	return errors.New("stub!")
+	return errors.New("getOperator: stub!")
 }
+
+type debuggingTransport struct {
+	inner rpc.Transport
+}
+
+func (t *debuggingTransport) Close() error {
+	return t.inner.Close()
+}
+
+func (t *debuggingTransport) SendMessage(ctx context.Context, msg capnprpc.Message) error {
+	err := t.inner.SendMessage(ctx, msg)
+	if err != nil {
+		log.Printf(">> error = %+v", err)
+	} else {
+		log.Printf(">> %+v", msg)
+	}
+	return err
+}
+
+func (t *debuggingTransport) RecvMessage(ctx context.Context) (capnprpc.Message, error) {
+	msg, err := t.inner.RecvMessage(ctx)
+	if err != nil {
+		log.Printf("<< error = %+v", err)
+	} else {
+		log.Printf("<< %+v", msg)
+	}
+	return msg, err
+}
+
+// type guard
+var _ rpc.Transport = (*debuggingTransport)(nil)
 
 func doServer() {
 	address := "127.0.0.1:9494"
@@ -88,12 +122,16 @@ func doServer() {
 	log.Printf("Listening on %s", address)
 
 	handleConn := func(c net.Conn) error {
-		log.Printf("Client joined")
 		cs := &calculatorServer{}
 		main := calculator.Calculator_ServerToClient(cs)
-		conn := rpc.NewConn(rpc.StreamTransport(c), rpc.MainInterface(main.Client))
+
+		// vvvvvvvvvvvvvvvvvvvvvvv
+		realTransport := rpc.StreamTransport(c)
+		debugTransport := &debuggingTransport{inner: realTransport}
+		conn := rpc.NewConn(debugTransport, rpc.MainInterface(main.Client))
+		// ^^^^^^^^^^^^^^^^^^^^^^^
+
 		err := conn.Wait()
-		log.Printf("Client left")
 		if err != nil {
 			return err
 		}
