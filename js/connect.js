@@ -15,7 +15,7 @@ async function connect(addr) {
     socket.on("error", reject);
     socket.on("connect", resolve);
     setTimeout(() => {
-      throw new Error(`Timed out while connecting to ${addr}`);
+      reject(new Error(`Timed out while connecting to ${addr}`));
     }, 5000);
 
     socket.connect(port, host);

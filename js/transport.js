@@ -1,4 +1,6 @@
 const WORD_SIZE = 8;
+const capnp = require("capnp-ts");
+const { Message } = require("capnp-ts/lib/std/rpc.capnp.js");
 
 class Transport {
   constructor(conn) {
@@ -48,16 +50,17 @@ class Transport {
     }
 
     let bufSegmentsSize = await this.readBytes(segmentSizeSize);
-    let sizes = new Array(N);
+    let wordsPerSegment = new Array(N);
     for (let i = 0; i < N; i++) {
-      sizes[i] = bufSegmentsSize.readUInt32LE(i * 4);
+      wordsPerSegment[i] = bufSegmentsSize.readUInt32LE(i * 4);
     }
-    console.log(`Segment sizes: `, sizes);
+    console.log(`Words per segment:`, wordsPerSegment);
 
-    let totalSegmentSize = 0;
-    for (const size of sizes) {
-      totalSegmentSize += size;
+    let totalSegmentWords = 0;
+    for (const words of wordsPerSegment) {
+      totalSegmentWords += words;
     }
+    const totalSegmentSize = totalSegmentWords * WORD_SIZE;
     console.log(`Total segment size: `, totalSegmentSize);
 
     let bufSegments = await this.readBytes(totalSegmentSize);
@@ -67,8 +70,11 @@ class Transport {
       bufSegments
     ]);
     console.log(`Final message buf: `, messageBuf);
+    console.log(`Final message buf len: `, messageBuf.length);
 
-    process.exit(0);
+    const msg = new capnp.Message(messageBuf);
+    const rpcMessage = msg.getRoot(Message);
+    return rpcMessage;
   }
 
   async readBytes(len) {
