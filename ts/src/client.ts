@@ -2,18 +2,13 @@ import * as capnp from "capnp-ts";
 import { connect } from "./connect";
 import { Message } from "capnp-ts/lib/std/rpc.capnp";
 import { Transport } from "./transport";
+import { Conn } from "./conn";
 
 export async function doClient() {
   const socket = await connect("127.0.0.1:9494");
   const transport = new Transport(socket);
-
-  {
-    const msg = new capnp.Message();
-    const root = msg.initRoot(Message);
-    const bootstrap = root.initBootstrap();
-    bootstrap.setQuestionId(42);
-    transport.sendMessage(msg);
-  }
+  const conn = new Conn(transport);
+  await conn.bootstrap();
 
   await new Promise(resolve => setTimeout(resolve, 250));
   process.exit(0);

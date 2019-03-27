@@ -11,7 +11,8 @@
   "dependencies": {
     "@types/node": "^11.12.0",
     "capnp-ts": "^0.4.0",
-    "capnpc-ts": "^0.4.0"
+    "capnpc-ts": "^0.4.0",
+    "ts-deferred": "^1.0.4"
   },
   "devDependencies": {
     "eslint": "^5.15.3",

@@ -1,4 +1,7 @@
+import * as capnp from "capnp-ts";
 import { Transport } from "./transport";
+import { Message } from "capnp-ts/lib/std/rpc.capnp";
+import { Deferred } from "ts-deferred";
 
 export interface Method {
   interfaceID: number;
@@ -16,24 +19,42 @@ export class Conn {
   questionID = new IDGen();
   questions = [] as Question[];
 
+  onError?: (err: Error) => void;
+
   constructor(transport: Transport) {
     this.transport = transport;
     this.questionID = new IDGen();
     this.questions = [];
+
+    this.startWork();
   }
 
-  async bootstrap() {}
+  async bootstrap() {
+    const q = this.newQuestion();
+    const msg = newMessage();
+    const boot = msg.initBootstrap();
+    boot.setQuestionId(q.id);
 
-  async startWork() {
+    this.transport.sendMessage(msg);
+    await q.deferred.promise;
+  }
+
+  startWork() {
     (async () => {
       for (;;) {
-        const root = await this.transport.receiveMessage();
-        this.transport.dumpMessage(">>", root);
+        const msg = await this.transport.recvMessage();
+        this.transport.dumpMessage(">>", msg);
       }
-    })();
+    })().catch(e => {
+      if (this.onError) {
+        this.onError(e);
+      } else {
+        console.log(`Cap'n Proto RPC error: `, e.stack);
+      }
+    });
   }
 
-  newQuestion(method: Method) {
+  newQuestion(method?: Method) {
     const id = this.questionID.next();
     const q = new Question(this, id, method);
     if (id === this.questions.length) {
@@ -48,16 +69,14 @@ export class Conn {
 export class Question {
   conn: Conn;
   id: number;
-  method: Method;
+  method?: Method;
+  deferred = new Deferred<Message>();
 
-  constructor(conn: Conn, id: number, method: Method) {
+  constructor(conn: Conn, id: number, method?: Method) {
     this.conn = conn;
     this.id = id;
     this.method = method;
   }
-
-  // signals that the question has been sent
-  start() {}
 }
 
 // IDGen returns a sequence of monotonically increasing IDs
@@ -79,4 +98,8 @@ export class IDGen {
   remove(i: number) {
     this.free.push(i);
   }
+}
+
+function newMessage(): Message {
+  return new capnp.Message().initRoot(Message);
 }

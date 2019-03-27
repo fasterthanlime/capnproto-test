@@ -4,6 +4,9 @@ default: typescript
 typescript:
 	./node_modules/.bin/tsc
 
+watch:
+	./node_modules/.bin/tsc -w
+
 schema: capnpc
 
 capnpc:

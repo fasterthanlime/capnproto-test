@@ -68,14 +68,14 @@ export class Transport {
     }
   }
 
-  sendMessage(msg: capnp.Message) {
-    this.dumpMessage(">>", msg.getRoot(Message));
+  sendMessage(msg: Message) {
+    this.dumpMessage(">>", msg);
 
-    let data = new Uint8Array(msg.toArrayBuffer());
+    let data = new Uint8Array(msg.segment.message.toArrayBuffer());
     this.socket.write(data);
   }
 
-  async receiveMessage() {
+  async recvMessage() {
     let offset = 0;
 
     let bufNumSegments = await this.readBytes(4);
