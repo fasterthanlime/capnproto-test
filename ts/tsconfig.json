@@ -1,0 +1,11 @@
+{
+  "compileOnSave": true,
+  "compilerOptions": {
+    "outDir": "lib",
+    "skipLibCheck": true
+  },
+  "extends": "./configs/tsconfig-base",
+  "include": [
+    "src/**/*.ts"
+  ]
+}

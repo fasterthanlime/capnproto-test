@@ -1,8 +1,8 @@
-const net = require("net");
+import { Socket } from "net";
 
-async function connect(addr) {
-  let [host, port] = addr.split(":");
-  port = parseInt(port, 10);
+export async function connect(addr: string) {
+  const [host, portString] = addr.split(":");
+  const port = parseInt(portString, 10);
   if (!host) {
     throw new Error(`invalid host ${host}`);
   }
@@ -10,7 +10,7 @@ async function connect(addr) {
     throw new Error(`invalid port ${port}`);
   }
 
-  const socket = new net.Socket();
+  const socket = new Socket();
   const p = new Promise((resolve, reject) => {
     socket.on("error", reject);
     socket.on("connect", resolve);
@@ -24,7 +24,5 @@ async function connect(addr) {
   await p;
   console.log(`Connected to ${addr}`);
   socket.setNoDelay(true);
-  return { socket };
+  return socket;
 }
-
-module.exports = connect;

@@ -1,22 +1,26 @@
-const WORD_SIZE = 8;
-const capnp = require("capnp-ts");
-const {
+import * as capnp from "capnp-ts";
+import {
   Message,
   Message_Which,
   Return,
   Return_Which,
   CapDescriptor,
   CapDescriptor_Which,
-} = require("capnp-ts/lib/std/rpc.capnp.js");
+} from "capnp-ts/lib/std/rpc.capnp";
+import { Socket } from "net";
 
-class Transport {
-  constructor(conn) {
-    this.conn = conn;
+const WORD_SIZE = 8;
+
+export class Transport {
+  socket: Socket;
+
+  constructor(socket: Socket) {
+    this.socket = socket;
   }
 
-  dumpMessage(prefix, root) {
+  dumpMessage(prefix: string, root: Message) {
     console.log("=====================");
-    let log = (...args) => {
+    let log = (...args: any[]) => {
       console.log(prefix, ...args);
     };
 
@@ -64,16 +68,11 @@ class Transport {
     }
   }
 
-  sendMessage(msg) {
+  sendMessage(msg: capnp.Message) {
     this.dumpMessage(">>", msg.getRoot(Message));
 
     let data = new Uint8Array(msg.toArrayBuffer());
-    this.conn.socket.write(
-      // data
-      data,
-      // encoding. null = binary, defaults to utf8
-      null,
-    );
+    this.socket.write(data);
   }
 
   async receiveMessage() {
@@ -82,7 +81,7 @@ class Transport {
     let bufNumSegments = await this.readBytes(4);
     offset += 4;
 
-    let N = bufNumSegments.readUInt32LE() + 1;
+    let N = bufNumSegments.readUInt32LE(0) + 1;
 
     let segmentSizeSize = N * 4;
     offset += segmentSizeSize;
@@ -116,13 +115,13 @@ class Transport {
     return msg.getRoot(Message);
   }
 
-  async readBytes(len) {
+  async readBytes(len: number): Promise<Buffer> {
     if (!len) {
       throw new Error(`invalid read length: ${len}`);
     }
 
     for (;;) {
-      let buf = this.conn.socket.read(len);
+      let buf = this.socket.read(len) as Buffer;
       if (buf) {
         return buf;
       }
@@ -130,12 +129,7 @@ class Transport {
     }
   }
 
-  readable() {
-    return new Promise(resolve => this.conn.socket.on("readable", resolve));
+  readable(): Promise<boolean> {
+    return new Promise(resolve => this.socket.on("readable", resolve));
   }
 }
-
-module.exports = {
-  Transport,
-  Question,
-};

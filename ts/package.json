@@ -9,12 +9,14 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "capnp-ts": "^0.4.0"
+    "@types/node": "^11.12.0",
+    "capnp-ts": "^0.4.0",
+    "capnpc-ts": "^0.4.0"
   },
   "devDependencies": {
-    "capnpc-js": "^0.4.0",
     "eslint": "^5.15.3",
     "flow-bin": "^0.95.1",
-    "prettier": "^1.16.4"
+    "prettier": "^1.16.4",
+    "typescript": "^3.3.4000"
   }
 }
