@@ -16,7 +16,8 @@ async function main() {
     transport.sendMessage(msg);
   }
 
-  await new Promise(resolve => setTimeout(resolve, 3000));
+  await new Promise(resolve => setTimeout(resolve, 250));
+  process.exit(0);
 }
 
 main().catch(e => {

@@ -122,14 +122,13 @@ func doServer() {
 	log.Printf("Listening on %s", address)
 
 	handleConn := func(c net.Conn) error {
+		log.Printf("Client joined")
 		cs := &calculatorServer{}
 		main := calculator.Calculator_ServerToClient(cs)
 
-		// vvvvvvvvvvvvvvvvvvvvvvv
 		realTransport := rpc.StreamTransport(c)
 		debugTransport := &debuggingTransport{inner: realTransport}
 		conn := rpc.NewConn(debugTransport, rpc.MainInterface(main.Client))
-		// ^^^^^^^^^^^^^^^^^^^^^^^
 
 		err := conn.Wait()
 		if err != nil {
