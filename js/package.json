@@ -9,9 +9,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "capnp-ts": "^0.4.0"
+    "capnp-ts": "^0.4.0",
+    "promise-channel": "^2.0.1"
   },
   "devDependencies": {
-    "capnpc-js": "^0.4.0"
+    "capnpc-js": "^0.4.0",
+    "eslint": "^5.15.3",
+    "flow-bin": "^0.95.1",
+    "prettier": "^1.16.4"
   }
 }

@@ -1,5 +1,5 @@
 const capnp = require("capnp-ts");
-const {Frames} = require("../schema/frames.capnp.js");
+const {Frames} = require("./frames.capnp.js");
 const {writeFileSync} = require("fs");
 
 function main() {
