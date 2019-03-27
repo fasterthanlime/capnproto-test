@@ -9,8 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "capnp-ts": "^0.4.0",
-    "promise-channel": "^2.0.1"
+    "capnp-ts": "^0.4.0"
   },
   "devDependencies": {
     "capnpc-js": "^0.4.0",

@@ -72,7 +72,7 @@ class Transport {
     console.log(`Final message buf: `, messageBuf);
     console.log(`Final message buf len: `, messageBuf.length);
 
-    const msg = new capnp.Message(messageBuf);
+    const msg = new capnp.Message(messageBuf, false /* packed */);
     const rpcMessage = msg.getRoot(Message);
     return rpcMessage;
   }
