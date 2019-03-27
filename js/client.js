@@ -2,7 +2,7 @@ const capnp = require("capnp-ts");
 const { Message } = require("capnp-ts/lib/std/rpc.capnp.js");
 
 const connect = require("./connect");
-const Transport = require("./transport");
+const { Transport } = require("./transport");
 
 async function main() {
   const conn = await connect("127.0.0.1:9494");

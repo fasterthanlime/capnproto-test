@@ -12,13 +12,6 @@ const {
 class Transport {
   constructor(conn) {
     this.conn = conn;
-
-    this.promise = new Promise((resolve, reject) => {
-      this.receiveLoop().catch(e => {
-        console.error(`capn proto RPC error: `, e);
-        reject(e);
-      });
-    });
   }
 
   dumpMessage(prefix, root) {
@@ -83,13 +76,6 @@ class Transport {
     );
   }
 
-  async receiveLoop() {
-    for (;;) {
-      const root = await this.receiveMessage();
-      this.dumpMessage(">>", root);
-    }
-  }
-
   async receiveMessage() {
     let offset = 0;
 
@@ -149,4 +135,7 @@ class Transport {
   }
 }
 
-module.exports = Transport;
+module.exports = {
+  Transport,
+  Question,
+};
