@@ -1,5 +1,5 @@
 import * as weak from "weak";
-import { Client, Call, Answer } from "./capability";
+import { Client, Call, Answer, ErrorClient } from "./capability";
 
 export class RefCount implements Client {
   refs: number;
@@ -8,6 +8,12 @@ export class RefCount implements Client {
   constructor(c: Client) {
     this._client = c;
     this.refs = 1;
+  }
+
+  static new(c: Client) {
+    const rc = new RefCount(c);
+    const ref = rc.newRef();
+    return { rc, ref };
   }
 
   call(cl: Call): Answer {
@@ -20,6 +26,14 @@ export class RefCount implements Client {
 
   close() {
     return this._client.close();
+  }
+
+  ref(): Client {
+    if (this.refs <= 0) {
+      return new ErrorClient(new Error(`rpc: Ref() called on zeroed refcount`));
+    }
+    this.refs++;
+    return this.newRef();
   }
 
   newRef(): Ref {

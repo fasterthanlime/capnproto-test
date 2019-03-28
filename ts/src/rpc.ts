@@ -1,3 +1,4 @@
+import { Deferred } from "ts-deferred";
 import * as capnp from "capnp-ts";
 import { Transport } from "./transport";
 import {
@@ -9,9 +10,11 @@ import {
   PromisedAnswer,
   Payload,
   CapDescriptor,
+  CapDescriptor_Which,
 } from "capnp-ts/lib/std/rpc.capnp";
 import { Segment } from "capnp-ts/lib/serialization/segment";
 import { RefCount, Ref } from "./refcount";
+import { ImportClient } from "./tables";
 import { Question, QuestionState } from "./question";
 import {
   Client,
@@ -44,6 +47,9 @@ export class Conn {
 
   exportID = new IDGen();
   exports = [] as (Export | null)[];
+
+  imports = {} as { [key: number]: ImportEntry };
+  answers = {} as { [key: number]: AnswerEntry };
 
   onError?: (err: Error) => void;
 
@@ -121,7 +127,8 @@ export class Conn {
       case Return.RESULTS: {
         releaseResultCaps = false;
         const results = ret.getResults();
-
+        // TODO: reply with unimplemented if we have a problem here
+        this.populateMessageCapTable(results);
         break;
       }
       default: {
@@ -130,6 +137,79 @@ export class Conn {
     }
 
     return null;
+  }
+
+  populateMessageCapTable(payload: Payload) {
+    const msg = payload.segment.message;
+    let ctab = payload.getCapTable();
+    ctab.forEach(desc => {
+      switch (desc.which()) {
+        case CapDescriptor.NONE: {
+          addCap(msg, null);
+          break;
+        }
+        case CapDescriptor.SENDER_HOSTED: {
+          const id = desc.getSenderHosted();
+          const client = this.addImport(id);
+          addCap(msg, client);
+          break;
+        }
+        case CapDescriptor.SENDER_PROMISE: {
+          // Apparently, this is a hack, see
+          // https://sourcegraph.com/github.com/capnproto/go-capnproto2@e1ae1f982d9908a41db464f02861a850a0880a5a/-/blob/rpc/rpc.go#L549
+          const id = desc.getSenderPromise();
+          const client = this.addImport(id);
+          addCap(msg, client);
+          break;
+        }
+        case CapDescriptor.RECEIVER_HOSTED: {
+          const id = desc.getReceiverHosted();
+          const e = this.findExport(id);
+          if (!e) {
+            throw new Error(
+              `rpc: capability table references unknown export ID ${id}`,
+            );
+          }
+          addCap(msg, e.rc.ref());
+          break;
+        }
+        case CapDescriptor.RECEIVER_ANSWER: {
+          const recvAns = desc.getReceiverAnswer();
+          const id = recvAns.getQuestionId();
+          const a = this.answers[id];
+          if (!a) {
+            throw new Error(
+              `rpc: capability table references unknown answer ID ${id}`,
+            );
+          }
+          const recvTransform = recvAns.getTransform();
+          const transform = promisedAnswerOpsToTransform(recvTransform);
+          addCap(msg, answerPipelineClient(a));
+          break;
+        }
+        default:
+          throw new Error(
+            `unhandled cap descriptor which: ${
+              CapDescriptor_Which[desc.which()]
+            }`,
+          );
+      }
+    });
+  }
+
+  addImport(id: number): Client {
+    let ent = this.imports[id];
+    if (ent) {
+      ent.refs++;
+      return ent.rc.ref();
+    }
+    const client = new ImportClient(this, id);
+    const { rc, ref } = RefCount.new(client);
+    this.imports[id] = {
+      rc,
+      refs: 1,
+    };
+    return ref;
   }
 
   findExport(id: number): Export | null {
@@ -149,11 +229,11 @@ export class Conn {
     }
 
     const id = this.exportID.next();
-    const rc = new RefCount(client);
+    const { rc, ref } = RefCount.new(client);
     let _export: Export = {
       id,
       rc,
-      client: rc.newRef(),
+      client: ref,
       wireRefs: 1,
     };
     if (id === this.exports.length) {
@@ -255,12 +335,17 @@ export class Conn {
     {
       dig: for (let client = _client; ; ) {
         // cf. https://sourcegraph.com/github.com/capnproto/go-capnproto2@e1ae1f982d9908a41db464f02861a850a0880a5a/-/blob/rpc/introspect.go#L113
-        // TODO: importClient
         // TODO: fulfiller.EmbargoClient
         // TODO: embargoClient
         // TODO: queueClient
         // TODO: localAnswerClient
-        if (client instanceof Ref) {
+        if (client instanceof ImportClient) {
+          if (client.conn !== this) {
+            break dig;
+          }
+          desc.setReceiverHosted(client.id);
+          return;
+        } else if (client instanceof Ref) {
           client = client.client();
         } else if (client instanceof PipelineClient) {
           const p = client.pipeline;
@@ -282,7 +367,6 @@ export class Conn {
               continue;
             }
             if (ans.conn != this) {
-              // TODO: figure out when this can happen?
               break dig;
             }
             const a = desc.initReceiverAnswer();
@@ -373,4 +457,37 @@ export function transformToPromisedAnswer(
     let op = transform[i];
     opList.get(i).setGetPointerField(op.field);
   }
+}
+
+export function addCap(_msg: capnp.Message, client: Client | null): number {
+  let msg = _msg as SuperMessage;
+  if (!msg.capTable) {
+    msg.capTable = [];
+  }
+  let id = msg.capTable.length;
+  msg.capTable.push(client);
+  return id;
+}
+
+export interface ImportEntry {
+  rc: RefCount;
+  refs: number;
+}
+
+export interface AnswerEntry {
+  id: number;
+  resultCaps: number[];
+  conn: Conn;
+
+  done: boolean;
+  obj?: capnp.Pointer;
+  err?: Error;
+  deferred: Deferred<capnp.Pointer>;
+}
+
+export function answerPipelineClient(
+  a: AnswerEntry,
+  transform: PipelineOp[],
+): Client {
+  return new LocalAnswerClient(a, transform);
 }

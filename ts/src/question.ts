@@ -24,7 +24,7 @@ export class Question implements Answer {
   state = QuestionState.IN_PROGRESS;
   obj?: capnp.Pointer;
   err?: Error;
-  deferred = new Deferred<Message>();
+  deferred = new Deferred<capnp.Pointer>();
 
   constructor(conn: Conn, id: number, method?: Method) {
     this.conn = conn;
@@ -58,6 +58,7 @@ export class Question implements Answer {
     transformToPromisedAnswer(a, transform);
     const payload = msgCall.initParams();
     this.conn.fillParams(payload, ccall);
+    // cf. https://sourcegraph.com/github.com/capnproto/go-capnproto2@e1ae1f982d9908a41db464f02861a850a0880a5a/-/blob/rpc/question.go#L242
     throw new Error(`stub!`);
   }
 
@@ -65,4 +66,3 @@ export class Question implements Answer {
     throw new Error(`stub!`);
   }
 }
-

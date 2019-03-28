@@ -5,7 +5,7 @@ import { getTargetPointerType } from "capnp-ts/lib/serialization/pointers/pointe
 import { clientOrNull } from "./rpc";
 
 export interface SuperMessage extends capnp.Message {
-  capTable: Client[];
+  capTable: (Client | null)[];
 }
 
 // An Interface is a reference to a client in a message's capability table.
