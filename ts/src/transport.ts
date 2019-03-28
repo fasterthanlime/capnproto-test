@@ -70,7 +70,6 @@ export class Transport {
 
   sendMessage(msg: Message) {
     this.dumpMessage(">>", msg);
-
     let data = new Uint8Array(msg.segment.message.toArrayBuffer());
     this.socket.write(data);
   }
@@ -111,8 +110,11 @@ export class Transport {
       bufSegments,
     ]);
 
-    const msg = new capnp.Message(messageBuf, false /* packed */);
-    return msg.getRoot(Message);
+    const msg = new capnp.Message(messageBuf, false /* packed */).getRoot(
+      Message,
+    );
+    this.dumpMessage(">>", msg);
+    return msg;
   }
 
   async readBytes(len: number): Promise<Buffer> {

@@ -2,6 +2,7 @@ import * as capnp from "capnp-ts";
 import { Segment } from "capnp-ts/lib/serialization/segment";
 import { PointerType } from "capnp-ts/lib/serialization/pointers/pointer-type";
 import { getTargetPointerType } from "capnp-ts/lib/serialization/pointers/pointer";
+import { clientOrNull } from "./rpc";
 
 export interface SuperMessage extends capnp.Message {
   capTable: Client[];
@@ -56,7 +57,19 @@ export interface Call {
   paramsSize: capnp.ObjectSize;
 }
 
-// TODO: PlaceParams
+export function placeParams(call: Call, s: Segment): capnp.Struct {
+  if (!call.paramsFunc) {
+    return call.params;
+  }
+
+  if (!s) {
+    throw new Error(`placeParams with null segment: stub!`);
+  }
+  let p = new capnp.Struct(s, 0);
+  capnp.Struct.initStruct(call.paramsSize, p);
+  call.paramsFunc(p);
+  return p;
+}
 
 // An Answer is the deferred result of a client call, which is usually wrapped
 // by a Pipeline.
@@ -74,6 +87,7 @@ export interface Answer {
 export class Pipeline {
   answer: Answer;
   parent?: Pipeline;
+  pipelineClient?: PipelineClient;
   op: PipelineOp = { field: 0 };
 
   // Returns a new Pipeline based on an answer
@@ -95,16 +109,96 @@ export class Pipeline {
   // this pipeline represents.
   async struct(): Promise<capnp.Struct> {
     let s = await this.answer.struct();
-    let ptr = transformPtr();
+    // let ptr = transformPtr();
+    throw new Error(`stub!`);
   }
 
   // client returns the client version of this pipeline
   client(): PipelineClient {
-    throw new Error("stub!");
+    if (!this.pipelineClient) {
+      this.pipelineClient = new PipelineClient(this);
+    }
+    return this.pipelineClient;
   }
 }
 
-export class PipelineClient extends Pipeline {}
+export class PipelineClient implements Client {
+  pipeline: Pipeline;
+
+  constructor(pipeline: Pipeline) {
+    this.pipeline = pipeline;
+  }
+
+  transform(): PipelineOp[] {
+    return this.pipeline.transform();
+  }
+
+  call(call: Call): Answer {
+    return this.pipeline.answer.pipelineCall(this.transform(), call);
+  }
+
+  close() {
+    return this.pipeline.answer.pipelineClose(this.transform());
+  }
+}
+
+export abstract class FixedAnswer implements Answer {
+  abstract structSync(): capnp.Struct;
+
+  async struct(): Promise<capnp.Struct> {
+    return this.structSync();
+  }
+
+  abstract pipelineCall(transform: PipelineOp[], call: Call): Answer;
+  abstract pipelineClose(transform: PipelineOp[]): void;
+}
+
+export class ImmediateAnswer extends FixedAnswer {
+  s: capnp.Struct;
+
+  constructor(s: capnp.Struct) {
+    super();
+    this.s = s;
+  }
+
+  structSync() {
+    return this.s;
+  }
+
+  findClient(transform: PipelineOp[]): Client {
+    const p = transformPtr(this.s, transform);
+    return clientOrNull(interfaceToClient(pointerToInterface(p)));
+  }
+
+  pipelineCall(transform: PipelineOp[], call: Call): Answer {
+    return this.findClient(transform).call(call);
+  }
+
+  pipelineClose(transform: PipelineOp[]): void {
+    this.findClient(transform).close();
+  }
+}
+
+export class ErrorAnswer extends FixedAnswer {
+  err: Error;
+
+  constructor(err: Error) {
+    super();
+    this.err = err;
+  }
+
+  structSync(): capnp.Struct {
+    throw this.err;
+  }
+
+  pipelineCall(_transform: PipelineOp[], _call: Call): Answer {
+    return this;
+  }
+
+  pipelineClose(_transform: PipelineOp[]): void {
+    throw this.err;
+  }
+}
 
 // A PipelineOp describes a step in transforming a pipeline.
 // It maps closely with the PromisedAnswer.Op struct in rpc.capnp.
@@ -116,7 +210,7 @@ export interface PipelineOp {
 // A Method identifies a method along with an optional
 // human-readable description of the method
 export interface Method {
-  interfaceID: number;
+  interfaceID: capnp.Uint64;
   methodID: number;
 
   // Canonical name of the interface. May be empty.
@@ -184,4 +278,20 @@ export function interfaceToClient(i: Interface): Client | null {
   }
 
   return tab[i.cap];
+}
+
+export class ErrorClient implements Client {
+  err: Error;
+
+  constructor(err: Error) {
+    this.err = err;
+  }
+
+  call(_call: Call): Answer {
+    throw this.err;
+  }
+
+  close() {
+    throw this.err;
+  }
 }

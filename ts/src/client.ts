@@ -8,8 +8,9 @@ export async function doClient() {
   const socket = await connect("127.0.0.1:9494");
   const transport = new Transport(socket);
   const conn = new Conn(transport);
-  await conn.bootstrap();
+  const client = await conn.bootstrap();
+  console.log(`Bootstrapped! client = `, client);
 
-  await new Promise(resolve => setTimeout(resolve, 250));
+  await new Promise(resolve => setTimeout(resolve, 1000));
   process.exit(0);
 }

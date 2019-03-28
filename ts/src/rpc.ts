@@ -6,17 +6,28 @@ import {
   Return,
   Return_Which,
   Exception,
+  PromisedAnswer,
+  Payload,
+  CapDescriptor,
 } from "capnp-ts/lib/std/rpc.capnp";
-import { RefCount } from "./refcount";
-import { Question } from "./question";
+import { Segment } from "capnp-ts/lib/serialization/segment";
+import { RefCount, Ref } from "./refcount";
+import { Question, QuestionState } from "./question";
 import {
   Client,
   Pipeline,
   PipelineOp,
   Method,
   Call,
+  Answer,
+  ErrorClient,
+  PipelineClient,
+  SuperMessage,
+  FixedAnswer,
   transformPtr,
   pointerToInterface,
+  interfaceToClient,
+  placeParams,
 } from "./capability";
 
 export class RPCError extends Error {
@@ -58,7 +69,6 @@ export class Conn {
     (async () => {
       for (;;) {
         const m = await this.transport.recvMessage();
-        this.transport.dumpMessage(">>", m);
         this.handleMessage(m);
       }
     })().catch(e => {
@@ -207,6 +217,90 @@ export class Conn {
     console.error(`Shutdown (stub): `, err.stack);
     this.transport.close();
   }
+
+  call(_client: Client, _call: Call): Answer {
+    throw new Error(`Conn.call: stub!`);
+  }
+
+  fillParams(payload: Payload, cl: Call) {
+    const params = placeParams(cl, payload.segment);
+    payload.setContent(params);
+    this.makeCapTable(payload.segment, length => payload.initCapTable(length));
+  }
+
+  makeCapTable(
+    s: Segment,
+    init: (length: number) => capnp.List<CapDescriptor>,
+  ): void {
+    const msg = s.message as SuperMessage;
+    const msgtab = msg.capTable;
+    if (!msgtab) {
+      return;
+    }
+    const t = init(msgtab.length);
+    for (let i = 0; i < msgtab.length; i++) {
+      let client = msgtab[i];
+      const desc = t.get(i);
+      if (!client) {
+        desc.setNone();
+        continue;
+      }
+      this.descriptorForClient(desc, client);
+    }
+  }
+
+  // descriptorForClient fills desc for client, adding it to the export
+  // table if necessary.  The caller must be holding onto c.mu.
+  descriptorForClient(desc: CapDescriptor, _client: Client): void {
+    {
+      dig: for (let client = _client; ; ) {
+        // cf. https://sourcegraph.com/github.com/capnproto/go-capnproto2@e1ae1f982d9908a41db464f02861a850a0880a5a/-/blob/rpc/introspect.go#L113
+        // TODO: importClient
+        // TODO: fulfiller.EmbargoClient
+        // TODO: embargoClient
+        // TODO: queueClient
+        // TODO: localAnswerClient
+        if (client instanceof Ref) {
+          client = client.client();
+        } else if (client instanceof PipelineClient) {
+          const p = client.pipeline;
+          const ans = p.answer;
+          const transform = p.transform();
+          // TODO: fulfiller
+          if (ans instanceof FixedAnswer) {
+            let s: capnp.Struct | undefined;
+            let err: Error | undefined;
+            try {
+              s = ans.structSync();
+            } catch (e) {
+              err = e;
+            }
+            client = clientFromResolution(transform, s, err);
+          } else if (ans instanceof Question) {
+            if (ans.state !== QuestionState.IN_PROGRESS) {
+              client = clientFromResolution(transform, ans.obj, ans.err);
+              continue;
+            }
+            if (ans.conn != this) {
+              // TODO: figure out when this can happen?
+              break dig;
+            }
+            const a = desc.initReceiverAnswer();
+            a.setQuestionId(ans.id);
+            transformToPromisedAnswer(a, p.transform());
+            return;
+          } else {
+            break dig;
+          }
+        } else {
+          break dig;
+        }
+      }
+    }
+
+    const id = this.addExport(_client);
+    desc.setSenderHosted(id);
+  }
 }
 
 // IDGen returns a sequence of monotonically increasing IDs
@@ -237,11 +331,11 @@ interface Export {
   wireRefs: number;
 }
 
-function newMessage(): Message {
+export function newMessage(): Message {
   return new capnp.Message().initRoot(Message);
 }
 
-function isSameClient(c: Client, d: Client): boolean {
+export function isSameClient(c: Client, d: Client): boolean {
   const norm = (c: Client): Client => {
     // TODO: normalize, see https://sourcegraph.com/github.com/capnproto/go-capnproto2@e1ae1f982d9908a41db464f02861a850a0880a5a/-/blob/rpc/introspect.go#L209
     return c;
@@ -251,8 +345,32 @@ function isSameClient(c: Client, d: Client): boolean {
 
 export function clientFromResolution(
   transform: PipelineOp[],
-  obj: capnp.Pointer,
+  obj?: capnp.Pointer,
+  err?: Error,
 ): Client {
+  if (err) {
+    return new ErrorClient(err);
+  }
+
+  if (!obj) {
+    return new ErrorClient(new Error(`null obj!`));
+  }
+
   let out = transformPtr(obj, transform);
-  return interfaceToClient(pointerToInterface(out));
+  return clientOrNull(interfaceToClient(pointerToInterface(out)));
+}
+
+export function clientOrNull(client: Client | null): Client {
+  return client ? client : new ErrorClient(new Error(`null client`));
+}
+
+export function transformToPromisedAnswer(
+  answer: PromisedAnswer,
+  transform: PipelineOp[],
+) {
+  const opList = answer.initTransform(transform.length);
+  for (let i = 0; i < transform.length; i++) {
+    let op = transform[i];
+    opList.get(i).setGetPointerField(op.field);
+  }
 }
