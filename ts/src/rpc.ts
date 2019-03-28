@@ -1,4 +1,3 @@
-import * as weak from "weak";
 import * as capnp from "capnp-ts";
 import { Transport } from "./transport";
 import {
@@ -8,22 +7,22 @@ import {
   Return_Which,
   Exception,
 } from "capnp-ts/lib/std/rpc.capnp";
-import { Deferred } from "ts-deferred";
+import { RefCount } from "./refcount";
+import { Question } from "./question";
+import {
+  Client,
+  Pipeline,
+  PipelineOp,
+  Method,
+  Call,
+  transformPtr,
+  pointerToInterface,
+} from "./capability";
 
 export class RPCError extends Error {
   constructor(public exception: Exception) {
     super(`Cap'n Proto Exception: ${exception.getReason()}`);
   }
-}
-
-export interface Method {
-  interfaceID: number;
-  methodID: number;
-
-  // Canonical name of the interface. May be empty.
-  interfaceName?: string;
-  // Method name as it appears in the schema. May be empty.
-  methodName?: string;
 }
 
 export class Conn {
@@ -45,14 +44,14 @@ export class Conn {
     this.startWork();
   }
 
-  async bootstrap() {
+  async bootstrap(): Promise<Client> {
     const q = this.newQuestion();
     const msg = newMessage();
     const boot = msg.initBootstrap();
     boot.setQuestionId(q.id);
 
     this.transport.sendMessage(msg);
-    await q.deferred.promise;
+    return await new Pipeline(q).client();
   }
 
   startWork() {
@@ -92,6 +91,8 @@ export class Conn {
   }
 
   handleReturnMessage(m: Message): Error | null {
+    var s: capnp.Struct;
+
     const ret = m.getReturn();
     const id = ret.getAnswerId();
     const q = this.popQuestion(id);
@@ -208,20 +209,6 @@ export class Conn {
   }
 }
 
-export class Question {
-  conn: Conn;
-  id: number;
-  method?: Method;
-  paramCaps: number[] = [];
-  deferred = new Deferred<Message>();
-
-  constructor(conn: Conn, id: number, method?: Method) {
-    this.conn = conn;
-    this.id = id;
-    this.method = method;
-  }
-}
-
 // IDGen returns a sequence of monotonically increasing IDs
 // with support for replacement.
 export class IDGen {
@@ -243,80 +230,6 @@ export class IDGen {
   }
 }
 
-interface Call {}
-
-interface Answer {}
-
-interface Client {
-  call(call: Call): Answer;
-  close(): void;
-}
-
-class RefCount implements Client {
-  refs: number;
-  _client: Client;
-
-  constructor(c: Client) {
-    this._client = c;
-    this.refs = 1;
-  }
-
-  call(cl: Call): Answer {
-    return this._client.call(cl);
-  }
-
-  client(): Client {
-    return this._client;
-  }
-
-  close() {
-    return this._client.close();
-  }
-
-  newRef(): Ref {
-    return new Ref(this);
-  }
-
-  decref() {
-    this.refs--;
-    if (this.refs === 0) {
-      this._client.close();
-    }
-  }
-}
-
-class Ref implements Client {
-  rc: RefCount;
-  closeState: { closed: boolean };
-
-  constructor(rc: RefCount) {
-    this.rc = rc;
-    let closeState = { closed: false };
-    this.closeState = closeState;
-    weak(this, () => {
-      if (!closeState.closed) {
-        closeState.closed = true;
-        rc.decref();
-      }
-    });
-  }
-
-  call(cl: Call): Answer {
-    return this.rc.call(cl);
-  }
-
-  client(): Client {
-    return this.rc._client;
-  }
-
-  close() {
-    if (!this.closeState.closed) {
-      this.closeState.closed = true;
-      this.rc.decref();
-    }
-  }
-}
-
 interface Export {
   id: number;
   rc: RefCount;
@@ -334,4 +247,12 @@ function isSameClient(c: Client, d: Client): boolean {
     return c;
   };
   return norm(c) === norm(d);
+}
+
+export function clientFromResolution(
+  transform: PipelineOp[],
+  obj: capnp.Pointer,
+): Client {
+  let out = transformPtr(obj, transform);
+  return interfaceToClient(pointerToInterface(out));
 }
