@@ -132,4 +132,8 @@ export class Transport {
   readable(): Promise<boolean> {
     return new Promise(resolve => this.socket.on("readable", resolve));
   }
+
+  close() {
+    this.socket.destroy();
+  }
 }
