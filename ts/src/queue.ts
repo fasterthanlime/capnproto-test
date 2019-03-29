@@ -6,24 +6,19 @@ interface Interface {
 }
 
 export class Queue {
-  q!: Interface;
-  start!: number;
-  n!: number;
-  cap!: number;
+  q: Interface;
+  start: number;
+  n: number;
+  cap: number;
 
   // creates a new queue that starts with n elements.
   // The interface's length must not change over the course of
   // the queue's usage.
   constructor(q: Interface, n: number) {
-    this.init(q, n);
-  }
-
-  // init initializes a queue. The old queue is untouched
-  init(r: Interface, n: number) {
-    this.q = r;
+    this.q = q;
     this.start = 0;
     this.n = n;
-    this.cap = r.len();
+    this.cap = q.len();
   }
 
   // len returns the length of the queue. This is different from the underlying

@@ -1,5 +1,6 @@
 import { AnswerEntry, clientFromResolution } from "./rpc";
 import { PipelineOp, Client, Answer, Call } from "./capability";
+import { Fulfiller } from "./fulfiller";
 
 export class LocalAnswerClient implements Client {
   a: AnswerEntry;
@@ -17,6 +18,9 @@ export class LocalAnswerClient implements Client {
       );
     }
     const f = new Fulfiller();
+    try {
+    } catch (e) {}
+    return f;
   }
 
   close() {}

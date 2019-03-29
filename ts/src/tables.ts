@@ -1,6 +1,12 @@
 import { Conn, newMessage } from "./rpc";
 import { Client, Call, Answer, ErrorAnswer } from "./capability";
 
+export class ErrImportClosed extends Error {
+  constructor() {
+    super(`rpc: call on closed import`);
+  }
+}
+
 export class ImportClient implements Client {
   conn: Conn;
   id: number;
@@ -13,7 +19,7 @@ export class ImportClient implements Client {
 
   call(cl: Call): Answer {
     if (this.closed) {
-      return new ErrorAnswer(new Error(`rpc: call on closed import`));
+      return new ErrorAnswer(new ErrImportClosed());
     }
 
     const q = this.conn.newQuestion(cl.method);

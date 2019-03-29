@@ -4,6 +4,12 @@ import { PointerType } from "capnp-ts/lib/serialization/pointers/pointer-type";
 import { getTargetPointerType } from "capnp-ts/lib/serialization/pointers/pointer";
 import { clientOrNull } from "./rpc";
 
+export class ErrNullClient extends Error {
+  constructor() {
+    super(`capnp: call on null client`);
+  }
+}
+
 export interface SuperMessage extends capnp.Message {
   capTable: (Client | null)[];
 }
@@ -37,17 +43,15 @@ export interface Client {
 }
 
 // The Call type holds the record for an outgoing interface call.
-export interface Call {
+export type Call = FuncCall | DataCall;
+
+type BaseCall = {
   // Method is the interface ID and method ID, along with the optional name, of
   // the method to call.
   method: Method;
+};
 
-  // Params is a struct containing parameters for the call.
-  // This should be set when the RPC system receives a call for an
-  // exported interface.  It is mutually exclusive with ParamsFunc
-  // and ParamsSize.
-  params: capnp.Struct;
-
+type FuncCall = BaseCall & {
   // ParamsFunc is a function that populates an allocated struct with
   // the parameters for the call.  ParamsSize determines the size of the
   // struct to allocate.  This is used when application code is using a
@@ -55,10 +59,40 @@ export interface Call {
   // exclusive with Params.
   paramsFunc: (s: capnp.Struct) => void;
   paramsSize: capnp.ObjectSize;
+};
+
+type DataCall = BaseCall & {
+  // Params is a struct containing parameters for the call.
+  // This should be set when the RPC system receives a call for an
+  // exported interface.  It is mutually exclusive with ParamsFunc
+  // and ParamsSize.
+  params: capnp.Struct;
+};
+
+function isFuncCall(call: Call): call is FuncCall {
+  return !!(call as FuncCall).paramsFunc;
 }
 
-export function placeParams(call: Call, s: Segment): capnp.Struct {
-  if (!call.paramsFunc) {
+function isDataCall(call: Call): call is DataCall {
+  return !(call as FuncCall).paramsFunc;
+}
+
+// Copy clones a call, ensuring that its Params are placed.
+// If Call.ParamsFunc is nil, then the same Call will be returned.
+export function copyCall(call: Call, s?: Segment): Call {
+  if (isDataCall(call)) {
+    return call;
+  }
+
+  const p = placeParams(call, s);
+  return {
+    method: call.method,
+    params: p,
+  };
+}
+
+export function placeParams(call: Call, s?: Segment): capnp.Struct {
+  if (isDataCall(call)) {
     return call.params;
   }
 
@@ -265,6 +299,10 @@ export function pointerToInterface(p: capnp.Pointer): Interface {
   throw new Error(
     `called pointerToInterface on pointer to non-interface: ${p}`,
   );
+}
+
+export function isInterfaceValid(i: Interface): boolean {
+  return !!i.seg;
 }
 
 export function interfaceToClient(i: Interface): Client | null {

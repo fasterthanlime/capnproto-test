@@ -11,6 +11,8 @@ import {
   Payload,
   CapDescriptor,
   CapDescriptor_Which,
+  PromisedAnswer_Op,
+  PromisedAnswer_Op_Which,
 } from "capnp-ts/lib/std/rpc.capnp";
 import { Segment } from "capnp-ts/lib/serialization/segment";
 import { RefCount, Ref } from "./refcount";
@@ -31,7 +33,9 @@ import {
   pointerToInterface,
   interfaceToClient,
   placeParams,
+  ErrNullClient,
 } from "./capability";
+import { LocalAnswerClient } from "./answer";
 
 export class RPCError extends Error {
   constructor(public exception: Exception) {
@@ -184,7 +188,7 @@ export class Conn {
           }
           const recvTransform = recvAns.getTransform();
           const transform = promisedAnswerOpsToTransform(recvTransform);
-          addCap(msg, answerPipelineClient(a));
+          addCap(msg, answerPipelineClient(a, transform));
           break;
         }
         default:
@@ -445,7 +449,7 @@ export function clientFromResolution(
 }
 
 export function clientOrNull(client: Client | null): Client {
-  return client ? client : new ErrorClient(new Error(`null client`));
+  return client ? client : new ErrorClient(new ErrNullClient());
 }
 
 export function transformToPromisedAnswer(
@@ -457,6 +461,27 @@ export function transformToPromisedAnswer(
     let op = transform[i];
     opList.get(i).setGetPointerField(op.field);
   }
+}
+
+export function promisedAnswerOpsToTransform(
+  list: capnp.List<PromisedAnswer_Op>,
+): PipelineOp[] {
+  let transform: PipelineOp[] = [];
+  list.forEach(op => {
+    switch (op.which()) {
+      case PromisedAnswer_Op.GET_POINTER_FIELD: {
+        transform.push(<PipelineOp>{
+          field: op.getGetPointerField(),
+        });
+        break;
+      }
+      case PromisedAnswer_Op.NOOP: {
+        // no-op
+        break;
+      }
+    }
+  });
+  return transform;
 }
 
 export function addCap(_msg: capnp.Message, client: Client | null): number {

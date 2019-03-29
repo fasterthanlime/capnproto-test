@@ -1,6 +1,18 @@
 import * as weak from "weak";
 import { Client, Call, Answer, ErrorClient } from "./capability";
 
+export class ErrZeroRef extends Error {
+  constructor() {
+    super(`rpc: Ref() called on zeroed refcount`);
+  }
+}
+
+export class ErrClosed extends Error {
+  constructor() {
+    super(`rpc: Close() called on closed client`);
+  }
+}
+
 export class RefCount implements Client {
   refs: number;
   _client: Client;
@@ -30,7 +42,7 @@ export class RefCount implements Client {
 
   ref(): Client {
     if (this.refs <= 0) {
-      return new ErrorClient(new Error(`rpc: Ref() called on zeroed refcount`));
+      return new ErrorClient(new ErrZeroRef());
     }
     this.refs++;
     return this.newRef();
