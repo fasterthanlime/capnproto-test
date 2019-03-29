@@ -1,3 +1,7 @@
+require("source-map-support").install({
+  environment: "node",
+});
+
 import * as capnp from "capnp-ts";
 import { ObjectSize as __O, Struct as __S } from "capnp-ts";
 import { connect } from "./connect";

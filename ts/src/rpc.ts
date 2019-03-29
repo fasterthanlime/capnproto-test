@@ -34,6 +34,8 @@ import {
   interfaceToClient,
   placeParams,
   ErrNullClient,
+  isFuncCall,
+  isDataCall,
 } from "./capability";
 import { LocalAnswerClient } from "./answer";
 
@@ -307,8 +309,15 @@ export class Conn {
   }
 
   fillParams(payload: Payload, cl: Call) {
-    const params = placeParams(cl, payload.segment);
-    payload.setContent(params);
+    if (isDataCall(cl)) {
+      throw new Error(`fillParams with datacall: stub!`);
+    } else {
+      const msg = new capnp.Message();
+      const params = new capnp.Struct(msg.getSegment(0), 0);
+      capnp.Struct.initStruct(cl.paramsSize, params);
+      cl.paramsFunc(params);
+      payload.setContent(params);
+    }
     this.makeCapTable(payload.segment, length => payload.initCapTable(length));
   }
 

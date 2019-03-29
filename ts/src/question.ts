@@ -24,6 +24,7 @@ export class Question implements Answer {
   state = QuestionState.IN_PROGRESS;
   obj?: capnp.Pointer;
   err?: Error;
+  derived: PipelineOp[][] = [];
   deferred = new Deferred<capnp.Pointer>();
 
   constructor(conn: Conn, id: number, method?: Method) {
@@ -58,11 +59,34 @@ export class Question implements Answer {
     transformToPromisedAnswer(a, transform);
     const payload = msgCall.initParams();
     this.conn.fillParams(payload, ccall);
-    // cf. https://sourcegraph.com/github.com/capnproto/go-capnproto2@e1ae1f982d9908a41db464f02861a850a0880a5a/-/blob/rpc/question.go#L242
-    throw new Error(`stub!`);
+    this.conn.transport.sendMessage(msg);
+    this.addPromise(transform);
+    return pipeq;
+  }
+
+  addPromise(transform: PipelineOp[]) {
+    for (const d of this.derived) {
+      if (transformsEqual(transform, d)) {
+        return;
+      }
+    }
+    this.derived.push(transform);
   }
 
   pipelineClose() {
     throw new Error(`stub!`);
   }
+}
+
+export function transformsEqual(t: PipelineOp[], u: PipelineOp[]): boolean {
+  if (t.length != u.length) {
+    return false;
+  }
+
+  for (const i in t) {
+    if (t[i].field != u[i].field) {
+      return false;
+    }
+  }
+  return true;
 }

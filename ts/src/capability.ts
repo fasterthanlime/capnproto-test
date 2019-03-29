@@ -69,11 +69,11 @@ type DataCall = BaseCall & {
   params: capnp.Struct;
 };
 
-function isFuncCall(call: Call): call is FuncCall {
+export function isFuncCall(call: Call): call is FuncCall {
   return !!(call as FuncCall).paramsFunc;
 }
 
-function isDataCall(call: Call): call is DataCall {
+export function isDataCall(call: Call): call is DataCall {
   return !(call as FuncCall).paramsFunc;
 }
 

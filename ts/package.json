@@ -13,6 +13,7 @@
     "@types/weak": "^1.0.0",
     "capnp-ts": "^0.4.0",
     "capnpc-ts": "^0.4.0",
+    "source-map-support": "^0.5.11",
     "ts-deferred": "^1.0.4",
     "weak": "^1.0.1"
   },
