@@ -1,5 +1,4 @@
 import { Deferred } from "ts-deferred";
-import { Message } from "capnp-ts/lib/std/rpc.capnp";
 import * as capnp from "capnp-ts";
 
 import {
@@ -34,7 +33,17 @@ export class Question implements Answer {
   }
 
   async struct(): Promise<capnp.Struct> {
-    throw new Error(`stub!`);
+    return await this.deferred.promise;
+  }
+
+  fulfill(obj: capnp.Pointer) {
+    // TODO: derived, see https://sourcegraph.com/github.com/capnproto/go-capnproto2@e1ae1f982d9908a41db464f02861a850a0880a5a/-/blob/rpc/question.go#L105
+    if (this.state !== QuestionState.IN_PROGRESS) {
+      throw new Error(`question.fulfill called more than once`);
+    }
+    this.obj = obj;
+    this.state = QuestionState.RESOLVED;
+    this.deferred.resolve(obj);
   }
 
   pipelineCall(transform: PipelineOp[], ccall: Call): Answer {

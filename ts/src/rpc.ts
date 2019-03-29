@@ -135,6 +135,9 @@ export class Conn {
         const results = ret.getResults();
         // TODO: reply with unimplemented if we have a problem here
         this.populateMessageCapTable(results);
+
+        const content = results.getContent();
+        q.fulfill(content);
         break;
       }
       default: {
