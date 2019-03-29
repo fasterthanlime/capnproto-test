@@ -1,10 +1,7 @@
 import * as capnp from "capnp-ts";
 import { Segment } from "capnp-ts/lib/serialization/segment";
 import { PointerType } from "capnp-ts/lib/serialization/pointers/pointer-type";
-import {
-  getTargetPointerType,
-  getPointerType,
-} from "capnp-ts/lib/serialization/pointers/pointer";
+import { getTargetPointerType } from "capnp-ts/lib/serialization/pointers/pointer";
 import { clientOrNull } from "./rpc";
 
 export class ErrNullClient extends Error {
@@ -123,13 +120,19 @@ export interface Answer {
 // A Pipeline is a generic wrapper for an answer
 export class Pipeline {
   answer: Answer;
-  parent?: Pipeline;
+  op: PipelineOp;
+  parent?: Pipeline | null;
   pipelineClient?: PipelineClient;
-  op: PipelineOp = { field: 0 };
 
   // Returns a new Pipeline based on an answer
-  constructor(answer: Answer) {
+  constructor(
+    answer: Answer,
+    op: PipelineOp = { field: 0 },
+    parent?: Pipeline,
+  ) {
     this.answer = answer;
+    this.op = op;
+    this.parent = parent;
   }
 
   // transform returns the operations needed to transform the root answer
@@ -144,10 +147,13 @@ export class Pipeline {
 
   // Struct waits until the answer is resolved and returns the struct
   // this pipeline represents.
-  async struct(): Promise<capnp.Struct> {
+  async struct(): Promise<capnp.Struct | null> {
     let s = await this.answer.struct();
-    // let ptr = transformPtr();
-    throw new Error(`stub!`);
+    let ptr = transformPtr(s, this.transform());
+    if (!ptr) {
+      return null;
+    }
+    return pointerToStruct(ptr);
   }
 
   // client returns the client version of this pipeline
@@ -156,6 +162,15 @@ export class Pipeline {
       this.pipelineClient = new PipelineClient(this);
     }
     return this.pipelineClient;
+  }
+
+  // getPipeline returns a derived pipeline which yields the pointer field given
+  getPipeline(off: number, defaultValue?: capnp.Pointer): Pipeline {
+    return new Pipeline(
+      this.answer,
+      <PipelineOp>{ field: off, defaultValue },
+      this,
+    );
   }
 }
 
@@ -267,18 +282,18 @@ export function transformPtr(
     return p;
   }
   let s = pointerToStruct(p);
-  for (const op of transform) {
-    s = capnp.Struct.getStruct(
-      op.field,
-      capnp.Struct as any, // FIXME: dirty..
-      s,
-      op.defaultValue,
-    );
+  if (!s) {
+    return p;
   }
+
+  for (const op of transform) {
+    s = capnp.Struct.getPointer(op.field, s);
+  }
+
   return s;
 }
 
-export function pointerToStruct(p: capnp.Pointer): capnp.Pointer {
+export function pointerToStruct(p: capnp.Pointer): capnp.Struct | null {
   if (getTargetPointerType(p) === PointerType.STRUCT) {
     return new capnp.Struct(
       p.segment,
@@ -287,7 +302,7 @@ export function pointerToStruct(p: capnp.Pointer): capnp.Pointer {
       p._capnp.compositeIndex,
     );
   }
-  throw new Error(`called pointerToStruct on pointer to non-struct: ${p}`);
+  return null;
 }
 
 export function pointerToInterface(p: capnp.Pointer): Interface {

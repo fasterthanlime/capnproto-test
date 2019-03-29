@@ -53,7 +53,8 @@ export class Question implements Answer {
       }
 
       const client = clientFromResolution(transform, this.obj, this.err);
-      return this.conn.call(client, ccall);
+      // TODO: check that this is fine - this was conn.lockedCall
+      return client.call(ccall);
     }
 
     const pipeq = this.conn.newQuestion(ccall.method);

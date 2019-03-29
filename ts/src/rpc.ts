@@ -142,6 +142,9 @@ export class Conn {
       }
     }
 
+    const fin = newFinishMessage(id, releaseResultCaps);
+    this.transport.sendMessage(fin);
+
     return null;
   }
 
@@ -430,6 +433,17 @@ interface Export {
 
 export function newMessage(): Message {
   return new capnp.Message().initRoot(Message);
+}
+
+export function newFinishMessage(
+  questionID: number,
+  release: boolean,
+): Message {
+  const m = newMessage();
+  const f = m.initFinish();
+  f.setQuestionId(questionID);
+  f.setReleaseResultCaps(release);
+  return m;
 }
 
 export function isSameClient(c: Client, d: Client): boolean {
