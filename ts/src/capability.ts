@@ -1,7 +1,10 @@
 import * as capnp from "capnp-ts";
 import { Segment } from "capnp-ts/lib/serialization/segment";
 import { PointerType } from "capnp-ts/lib/serialization/pointers/pointer-type";
-import { getTargetPointerType } from "capnp-ts/lib/serialization/pointers/pointer";
+import {
+  getTargetPointerType,
+  getPointerType,
+} from "capnp-ts/lib/serialization/pointers/pointer";
 import { clientOrNull } from "./rpc";
 
 export class ErrNullClient extends Error {
@@ -291,7 +294,7 @@ export function pointerToInterface(p: capnp.Pointer): Interface {
   // see https://capnproto.org/encoding.html, interfaces are
   // "other" pointers.
   if (getTargetPointerType(p) === PointerType.OTHER) {
-    let i: Interface = {
+    return <Interface>{
       seg: p.segment,
       cap: p.segment.getUint32(p.byteOffset + 4), // FIXME: that definitely belongs in capnp-ts somewhere
     };

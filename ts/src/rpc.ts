@@ -1,43 +1,40 @@
-import { Deferred } from "ts-deferred";
 import * as capnp from "capnp-ts";
-import { Transport } from "./transport";
+import { Segment } from "capnp-ts/lib/serialization/segment";
 import {
-  Message,
-  Message_Which,
-  Return,
-  Return_Which,
-  Exception,
-  PromisedAnswer,
-  Payload,
   CapDescriptor,
   CapDescriptor_Which,
+  Exception,
+  Message,
+  Message_Which,
+  Payload,
+  PromisedAnswer,
   PromisedAnswer_Op,
-  PromisedAnswer_Op_Which,
+  Return,
+  Return_Which,
 } from "capnp-ts/lib/std/rpc.capnp";
-import { Segment } from "capnp-ts/lib/serialization/segment";
-import { RefCount, Ref } from "./refcount";
-import { ImportClient } from "./tables";
-import { Question, QuestionState } from "./question";
-import {
-  Client,
-  Pipeline,
-  PipelineOp,
-  Method,
-  Call,
-  Answer,
-  ErrorClient,
-  PipelineClient,
-  SuperMessage,
-  FixedAnswer,
-  transformPtr,
-  pointerToInterface,
-  interfaceToClient,
-  placeParams,
-  ErrNullClient,
-  isFuncCall,
-  isDataCall,
-} from "./capability";
+import { Deferred } from "ts-deferred";
 import { LocalAnswerClient } from "./answer";
+import {
+  Answer,
+  Call,
+  Client,
+  ErrNullClient,
+  ErrorClient,
+  FixedAnswer,
+  interfaceToClient,
+  isDataCall,
+  Method,
+  Pipeline,
+  PipelineClient,
+  PipelineOp,
+  pointerToInterface,
+  SuperMessage,
+  transformPtr,
+} from "./capability";
+import { Question, QuestionState } from "./question";
+import { Ref, RefCount } from "./refcount";
+import { ImportClient } from "./tables";
+import { Transport } from "./transport";
 
 export class RPCError extends Error {
   constructor(public exception: Exception) {

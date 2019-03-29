@@ -5,7 +5,6 @@ require("source-map-support").install({
 import * as capnp from "capnp-ts";
 import { ObjectSize as __O, Struct as __S } from "capnp-ts";
 import { connect } from "./connect";
-import { Message } from "capnp-ts/lib/std/rpc.capnp";
 import { Transport } from "./transport";
 import { Conn } from "./rpc";
 import { Call } from "./capability";
@@ -29,6 +28,8 @@ export async function doClient() {
   const conn = new Conn(transport);
   const client = await conn.bootstrap();
   console.log(`Bootstrapped! client = `, client);
+
+  await new Promise(resolve => setTimeout(resolve, 1000));
 
   const evaluateRes = await client
     .call(<Call>{
