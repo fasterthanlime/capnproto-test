@@ -13,7 +13,7 @@ import {
   ErrorAnswer,
   ErrNullClient,
 } from "./capability";
-import { Queue } from "./queue";
+import { Queue } from "capnp-ts/lib/internal/queue";
 import { Deferred } from "ts-deferred";
 import { answerPipelineClient } from "./rpc";
 
