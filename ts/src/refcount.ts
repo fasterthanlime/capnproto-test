@@ -1,4 +1,5 @@
 import * as weak from "weak";
+import { Struct } from "capnp-ts";
 import { Client, Call, Answer, ErrorClient } from "./capability";
 
 export class ErrZeroRef extends Error {
@@ -28,7 +29,7 @@ export class RefCount implements Client {
     return { rc, ref };
   }
 
-  call(cl: Call): Answer {
+  call<P extends Struct, R extends Struct>(cl: Call<P, R>): Answer<R> {
     return this._client.call(cl);
   }
 
@@ -76,7 +77,7 @@ export class Ref implements Client {
     });
   }
 
-  call(cl: Call): Answer {
+  call<P extends Struct, R extends Struct>(cl: Call<P, R>): Answer<R> {
     return this.rc.call(cl);
   }
 

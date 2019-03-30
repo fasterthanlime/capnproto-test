@@ -1,5 +1,6 @@
 import { Deferred } from "ts-deferred";
 import * as capnp from "capnp-ts";
+import { Struct } from "capnp-ts";
 
 import {
   Conn,
@@ -15,24 +16,24 @@ export enum QuestionState {
   CANCELED,
 }
 
-export class Question implements Answer {
+export class Question<P extends Struct, R extends Struct> implements Answer<R> {
   conn: Conn;
   id: number;
-  method?: Method;
+  method?: Method<P, R>;
   paramCaps: number[] = [];
   state = QuestionState.IN_PROGRESS;
-  obj?: capnp.Pointer;
+  obj?: R;
   err?: Error;
   derived: PipelineOp[][] = [];
-  deferred = new Deferred<capnp.Pointer>();
+  deferred = new Deferred<R>();
 
-  constructor(conn: Conn, id: number, method?: Method) {
+  constructor(conn: Conn, id: number, method?: Method<P, R>) {
     this.conn = conn;
     this.id = id;
     this.method = method;
   }
 
-  async struct(): Promise<capnp.Struct> {
+  async struct(): Promise<R> {
     return await this.deferred.promise;
   }
 
@@ -41,13 +42,21 @@ export class Question implements Answer {
     if (this.state !== QuestionState.IN_PROGRESS) {
       throw new Error(`question.fulfill called more than once`);
     }
-    this.obj = obj;
+    if (this.method) {
+      this.obj = Struct.getAs(this.method.ResultsClass, obj);
+    } else {
+      // ugly, but when bootstrapping, method is null
+      this.obj = obj as R;
+    }
     this.state = QuestionState.RESOLVED;
-    this.deferred.resolve(obj);
+    this.deferred.resolve(this.obj);
   }
 
-  pipelineCall(transform: PipelineOp[], ccall: Call): Answer {
-    if (this.conn.findQuestion(this.id) !== this) {
+  pipelineCall<R2 extends Struct>(
+    transform: PipelineOp[],
+    ccall: Call<R, R2>,
+  ): Answer<R2> {
+    if (this.conn.findQuestion<P, R>(this.id) !== this) {
       if (this.state === QuestionState.IN_PROGRESS) {
         throw new Error(`question popped but not done`);
       }

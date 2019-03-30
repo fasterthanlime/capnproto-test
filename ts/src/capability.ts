@@ -1,4 +1,5 @@
 import * as capnp from "capnp-ts";
+import { Struct, StructCtor } from "capnp-ts";
 import { Segment } from "capnp-ts/lib/serialization/segment";
 import { PointerType } from "capnp-ts/lib/serialization/pointers/pointer-type";
 import { getTargetPointerType } from "capnp-ts/lib/serialization/pointers/pointer";
@@ -35,7 +36,7 @@ export interface Client {
   // implementation of Client.  A type that implements Client must
   // guarantee that if foo() then bar() is called on a client, that
   // acknowledging foo() happens before acknowledging bar().
-  call(call: Call): Answer;
+  call<P extends Struct, R extends Struct>(call: Call<P, R>): Answer<R>;
 
   // close releases any resources associated with this client.
   // No further calls to the client should be made after calling Close.
@@ -43,43 +44,51 @@ export interface Client {
 }
 
 // The Call type holds the record for an outgoing interface call.
-export type Call = FuncCall | DataCall;
+export type Call<P extends Struct, R extends Struct> =
+  | FuncCall<P, R>
+  | DataCall<P, R>;
 
-type BaseCall = {
+type BaseCall<P extends Struct, R extends Struct> = {
   // Method is the interface ID and method ID, along with the optional name, of
   // the method to call.
-  method: Method;
+  method: Method<P, R>;
 };
 
-type FuncCall = BaseCall & {
+type FuncCall<P extends Struct, R extends Struct> = BaseCall<P, R> & {
   // ParamsFunc is a function that populates an allocated struct with
   // the parameters for the call.  ParamsSize determines the size of the
   // struct to allocate.  This is used when application code is using a
   // client.  These settings should be set together; they are mutually
   // exclusive with Params.
-  paramsFunc: (s: capnp.Struct) => void;
-  paramsSize: capnp.ObjectSize;
+  paramsFunc: (params: P) => void;
 };
 
-type DataCall = BaseCall & {
+type DataCall<P extends Struct, R extends Struct> = BaseCall<P, R> & {
   // Params is a struct containing parameters for the call.
   // This should be set when the RPC system receives a call for an
   // exported interface.  It is mutually exclusive with ParamsFunc
   // and ParamsSize.
-  params: capnp.Struct;
+  params: P;
 };
 
-export function isFuncCall(call: Call): call is FuncCall {
-  return !!(call as FuncCall).paramsFunc;
+export function isFuncCall<P extends Struct, R extends Struct>(
+  call: Call<P, R>,
+): call is FuncCall<P, R> {
+  return !!(call as FuncCall<P, R>).paramsFunc;
 }
 
-export function isDataCall(call: Call): call is DataCall {
-  return !(call as FuncCall).paramsFunc;
+export function isDataCall<P extends Struct, R extends Struct>(
+  call: Call<P, R>,
+): call is DataCall<P, R> {
+  return !isFuncCall(call);
 }
 
 // Copy clones a call, ensuring that its Params are placed.
 // If Call.ParamsFunc is nil, then the same Call will be returned.
-export function copyCall(call: Call, s?: Segment): Call {
+export function copyCall<P extends Struct, R extends Struct>(
+  call: Call<P, R>,
+  s?: Segment,
+): Call<P, R> {
   if (isDataCall(call)) {
     return call;
   }
@@ -91,55 +100,57 @@ export function copyCall(call: Call, s?: Segment): Call {
   };
 }
 
-export function placeParams(call: Call, s?: Segment): capnp.Struct {
+export function placeParams<P extends Struct, R extends Struct>(
+  call: Call<P, R>,
+  s?: Segment,
+): P {
   if (isDataCall(call)) {
     return call.params;
   }
 
-  if (!s) {
-    throw new Error(`placeParams with null segment: stub!`);
+  if (s) {
+    // TODO: figure out how to place in same segment
+    console.warn(`placeParams: ignoring specified segment for now`);
   }
-  let p = new capnp.Struct(s, 0);
-  capnp.Struct.initStruct(call.paramsSize, p);
+  const msg = new capnp.Message();
+  let p = new call.method.ParamsClass(msg.getSegment(0), 0);
+  capnp.Struct.initStruct(call.method.ParamsClass._capnp.size, p);
   call.paramsFunc(p);
   return p;
 }
 
 // An Answer is the deferred result of a client call, which is usually wrapped
 // by a Pipeline.
-export interface Answer {
+export interface Answer<R extends Struct> {
   // struct waits until the call is finished and returns the result.
-  struct(): Promise<capnp.Struct>;
+  struct(): Promise<R>;
 
   // The following methods are the same as in Client except with an added
   // transform parameter -- a path to the interface to use.
-  pipelineCall(transform: PipelineOp[], call: Call): Answer;
+  pipelineCall<R2 extends Struct>(
+    transform: PipelineOp[],
+    call: Call<R, R2>,
+  ): Answer<R2>;
   pipelineClose(transform: PipelineOp[]): void;
 }
 
 // A Pipeline is a generic wrapper for an answer
-export class Pipeline {
-  answer: Answer;
-  op: PipelineOp;
-  parent?: Pipeline | null;
-  pipelineClient?: PipelineClient;
+export class Pipeline<R extends Struct> {
+  pipelineClient?: PipelineClient<R>;
 
   // Returns a new Pipeline based on an answer
   constructor(
-    answer: Answer,
-    op: PipelineOp = { field: 0 },
-    parent?: Pipeline,
-  ) {
-    this.answer = answer;
-    this.op = op;
-    this.parent = parent;
-  }
+    public ResultsClass: StructCtor<R>,
+    public answer: Answer<any>,
+    public op: PipelineOp = { field: 0 },
+    public parent?: Pipeline<any>,
+  ) {}
 
   // transform returns the operations needed to transform the root answer
   // into the value p represents.
   transform(): PipelineOp[] {
     let xform: PipelineOp[] = [];
-    for (let q: Pipeline | null = this; !!q.parent; q = q.parent) {
+    for (let q: Pipeline<any> | null = this; !!q.parent; q = q.parent) {
       xform.unshift(q.op);
     }
     return xform;
@@ -147,17 +158,17 @@ export class Pipeline {
 
   // Struct waits until the answer is resolved and returns the struct
   // this pipeline represents.
-  async struct(): Promise<capnp.Struct | null> {
+  async struct(): Promise<R | null> {
     let s = await this.answer.struct();
     let ptr = transformPtr(s, this.transform());
     if (!ptr) {
       return null;
     }
-    return pointerToStruct(ptr);
+    return Struct.getAs(this.ResultsClass, ptr);
   }
 
   // client returns the client version of this pipeline
-  client(): PipelineClient {
+  client(): PipelineClient<R> {
     if (!this.pipelineClient) {
       this.pipelineClient = new PipelineClient(this);
     }
@@ -165,8 +176,13 @@ export class Pipeline {
   }
 
   // getPipeline returns a derived pipeline which yields the pointer field given
-  getPipeline(off: number, defaultValue?: capnp.Pointer): Pipeline {
+  getPipeline<RR extends Struct>(
+    ResultsClass: StructCtor<RR>,
+    off: number,
+    defaultValue?: capnp.Pointer,
+  ): Pipeline<RR> {
     return new Pipeline(
+      ResultsClass,
       this.answer,
       <PipelineOp>{ field: off, defaultValue },
       this,
@@ -174,10 +190,10 @@ export class Pipeline {
   }
 }
 
-export class PipelineClient implements Client {
-  pipeline: Pipeline;
+export class PipelineClient<R extends Struct> implements Client {
+  pipeline: Pipeline<R>;
 
-  constructor(pipeline: Pipeline) {
+  constructor(pipeline: Pipeline<R>) {
     this.pipeline = pipeline;
   }
 
@@ -185,7 +201,7 @@ export class PipelineClient implements Client {
     return this.pipeline.transform();
   }
 
-  call(call: Call): Answer {
+  call<P extends Struct, R extends Struct>(call: Call<P, R>): Answer<R> {
     return this.pipeline.answer.pipelineCall(this.transform(), call);
   }
 
@@ -194,23 +210,23 @@ export class PipelineClient implements Client {
   }
 }
 
-export abstract class FixedAnswer implements Answer {
-  abstract structSync(): capnp.Struct;
+export abstract class FixedAnswer<R extends Struct> implements Answer<R> {
+  abstract structSync(): R;
 
-  async struct(): Promise<capnp.Struct> {
+  async struct(): Promise<R> {
     return this.structSync();
   }
 
-  abstract pipelineCall(transform: PipelineOp[], call: Call): Answer;
+  abstract pipelineCall<R2 extends Struct>(
+    transform: PipelineOp[],
+    call: Call<R, R2>,
+  ): Answer<R2>;
   abstract pipelineClose(transform: PipelineOp[]): void;
 }
 
-export class ImmediateAnswer extends FixedAnswer {
-  s: capnp.Struct;
-
-  constructor(s: capnp.Struct) {
+export class ImmediateAnswer<R extends Struct> extends FixedAnswer<R> {
+  constructor(public s: R) {
     super();
-    this.s = s;
   }
 
   structSync() {
@@ -222,7 +238,10 @@ export class ImmediateAnswer extends FixedAnswer {
     return clientOrNull(interfaceToClient(pointerToInterface(p)));
   }
 
-  pipelineCall(transform: PipelineOp[], call: Call): Answer {
+  pipelineCall<R2 extends Struct>(
+    transform: PipelineOp[],
+    call: Call<R, R2>,
+  ): Answer<R2> {
     return this.findClient(transform).call(call);
   }
 
@@ -231,7 +250,7 @@ export class ImmediateAnswer extends FixedAnswer {
   }
 }
 
-export class ErrorAnswer extends FixedAnswer {
+export class ErrorAnswer extends FixedAnswer<any> {
   err: Error;
 
   constructor(err: Error) {
@@ -239,11 +258,14 @@ export class ErrorAnswer extends FixedAnswer {
     this.err = err;
   }
 
-  structSync(): capnp.Struct {
+  structSync() {
     throw this.err;
   }
 
-  pipelineCall(_transform: PipelineOp[], _call: Call): Answer {
+  pipelineCall<R2 extends Struct>(
+    _transform: PipelineOp[],
+    _call: Call<any, R2>,
+  ): Answer<R2> {
     return this;
   }
 
@@ -261,7 +283,7 @@ export interface PipelineOp {
 
 // A Method identifies a method along with an optional
 // human-readable description of the method
-export interface Method {
+export interface Method<P extends Struct, R extends Struct> {
   interfaceID: capnp.Uint64;
   methodID: number;
 
@@ -269,6 +291,9 @@ export interface Method {
   interfaceName?: string;
   // Method name as it appears in the schema. May be empty.
   methodName?: string;
+
+  ParamsClass: StructCtor<P>;
+  ResultsClass: StructCtor<R>;
 }
 
 // transformPtr applies a sequence of pipeline operations to a pointer
@@ -343,7 +368,8 @@ export class ErrorClient implements Client {
     this.err = err;
   }
 
-  call(_call: Call): Answer {
+  call<P extends Struct, R extends Struct>(_call: Call<P, R>): Answer<R> {
+    // FIXME: ErrorAnswer ?
     throw this.err;
   }
 

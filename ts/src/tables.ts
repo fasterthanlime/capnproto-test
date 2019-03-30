@@ -1,3 +1,4 @@
+import { Struct } from "capnp-ts";
 import { Conn, newMessage } from "./rpc";
 import { Client, Call, Answer, ErrorAnswer } from "./capability";
 
@@ -17,7 +18,7 @@ export class ImportClient implements Client {
     this.id = id;
   }
 
-  call(cl: Call): Answer {
+  call<P extends Struct, R extends Struct>(cl: Call<P, R>): Answer<R> {
     if (this.closed) {
       return new ErrorAnswer(new ErrImportClosed());
     }

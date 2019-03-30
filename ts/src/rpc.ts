@@ -1,4 +1,5 @@
 import * as capnp from "capnp-ts";
+import { Struct } from "capnp-ts";
 import { Segment } from "capnp-ts/lib/serialization/segment";
 import {
   CapDescriptor,
@@ -28,6 +29,7 @@ import {
   PipelineClient,
   PipelineOp,
   pointerToInterface,
+  placeParams,
   SuperMessage,
   transformPtr,
 } from "./capability";
@@ -35,6 +37,7 @@ import { Question, QuestionState } from "./question";
 import { Ref, RefCount } from "./refcount";
 import { ImportClient } from "./tables";
 import { Transport } from "./transport";
+import { AnswerEntry } from "./answer";
 
 export class RPCError extends Error {
   constructor(public exception: Exception) {
@@ -46,13 +49,13 @@ export class Conn {
   transport: Transport;
 
   questionID = new IDGen();
-  questions = [] as (Question | null)[];
+  questions = [] as (Question<any, any> | null)[];
 
   exportID = new IDGen();
   exports = [] as (Export | null)[];
 
   imports = {} as { [key: number]: ImportEntry };
-  answers = {} as { [key: number]: AnswerEntry };
+  answers = {} as { [key: number]: AnswerEntry<any> };
 
   onError?: (err: Error) => void;
 
@@ -71,7 +74,7 @@ export class Conn {
     boot.setQuestionId(q.id);
 
     this.transport.sendMessage(msg);
-    return await new Pipeline(q).client();
+    return await new Pipeline(Struct as any, q).client();
   }
 
   startWork() {
@@ -110,7 +113,7 @@ export class Conn {
   }
 
   handleReturnMessage(m: Message): Error | null {
-    var s: capnp.Struct;
+    var s: Struct;
 
     const ret = m.getReturn();
     const id = ret.getAnswerId();
@@ -274,7 +277,9 @@ export class Conn {
     console.error(s);
   }
 
-  newQuestion(method?: Method) {
+  newQuestion<P extends Struct, R extends Struct>(
+    method?: Method<P, R>,
+  ): Question<P, R> {
     const id = this.questionID.next();
     const q = new Question(this, id, method);
     if (id === this.questions.length) {
@@ -285,15 +290,19 @@ export class Conn {
     return q;
   }
 
-  findQuestion(id: number): Question | null {
+  findQuestion<P extends Struct, R extends Struct>(
+    id: number,
+  ): Question<P, R> | null {
     if (id > this.questions.length) {
       return null;
     }
     return this.questions[id];
   }
 
-  popQuestion(id: number): Question | null {
-    const q = this.findQuestion(id);
+  popQuestion<P extends Struct, R extends Struct>(
+    id: number,
+  ): Question<P, R> | null {
+    const q = this.findQuestion<P, R>(id);
     if (!q) {
       return q;
     }
@@ -307,20 +316,19 @@ export class Conn {
     this.transport.close();
   }
 
-  call(_client: Client, _call: Call): Answer {
+  call<P extends Struct, R extends Struct>(
+    _client: Client,
+    _call: Call<P, R>,
+  ): Answer<R> {
     throw new Error(`Conn.call: stub!`);
   }
 
-  fillParams(payload: Payload, cl: Call) {
-    if (isDataCall(cl)) {
-      throw new Error(`fillParams with datacall: stub!`);
-    } else {
-      const msg = new capnp.Message();
-      const params = new capnp.Struct(msg.getSegment(0), 0);
-      capnp.Struct.initStruct(cl.paramsSize, params);
-      cl.paramsFunc(params);
-      payload.setContent(params);
-    }
+  fillParams<P extends Struct, R extends Struct>(
+    payload: Payload,
+    cl: Call<P, R>,
+  ) {
+    const params = placeParams(cl, payload.segment);
+    payload.setContent(params);
     this.makeCapTable(payload.segment, length => payload.initCapTable(length));
   }
 
@@ -369,7 +377,7 @@ export class Conn {
           const transform = p.transform();
           // TODO: fulfiller
           if (ans instanceof FixedAnswer) {
-            let s: capnp.Struct | undefined;
+            let s: Struct | undefined;
             let err: Error | undefined;
             try {
               s = ans.structSync();
@@ -522,19 +530,8 @@ export interface ImportEntry {
   refs: number;
 }
 
-export interface AnswerEntry {
-  id: number;
-  resultCaps: number[];
-  conn: Conn;
-
-  done: boolean;
-  obj?: capnp.Pointer;
-  err?: Error;
-  deferred: Deferred<capnp.Pointer>;
-}
-
 export function answerPipelineClient(
-  a: AnswerEntry,
+  a: AnswerEntry<any>,
   transform: PipelineOp[],
 ): Client {
   return new LocalAnswerClient(a, transform);

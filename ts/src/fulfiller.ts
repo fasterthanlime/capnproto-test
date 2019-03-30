@@ -1,4 +1,5 @@
 import * as capnp from "capnp-ts";
+import { Struct } from "capnp-ts";
 import {
   SuperMessage,
   Answer,
@@ -53,7 +54,7 @@ class EmbargoClient implements Client {
 
     while (c && c.call) {
       const ans = this._client.call(c.call);
-      (async (f: Fulfiller, ans: Answer) => {
+      (async <R extends Struct>(f: Fulfiller<R>, ans: Answer<R>) => {
         try {
           f.fulfill(await ans.struct());
         } catch (e) {
@@ -84,7 +85,7 @@ class EmbargoClient implements Client {
 
   // call either queues a call to the underlying client or starts a
   // call if the embargo has been lifted
-  call(call: Call): Answer {
+  call<P extends Struct, R extends Struct>(call: Call<P, R>): Answer<R> {
     // Fast path: queue is flushed
     if (this.isPassthrough()) {
       return this._client.call(call);
@@ -94,8 +95,8 @@ class EmbargoClient implements Client {
     return this.push(call);
   }
 
-  push(_call: Call): Answer {
-    const f = new Fulfiller();
+  push<P extends Struct, R extends Struct>(_call: Call<P, R>): Answer<R> {
+    const f = new Fulfiller<R>();
     const call = copyCall(_call);
     const i = this.q.push();
     if (i == -1) {
@@ -125,16 +126,16 @@ const callQueueSize = 64;
 // as an unresolved answer. A Fulfiller is considered to be resolved
 // once fulfill or reject is called. Calls to the fulfiller will queue
 // up until it is resolved.
-export class Fulfiller implements Answer {
+export class Fulfiller<R extends Struct> implements Answer<R> {
   resolved = false;
-  answer?: Answer;
+  answer?: Answer<R>;
   queue: pcall[] = [];
   queueCap = callQueueSize;
-  deferred = new Deferred<capnp.Struct>();
+  deferred = new Deferred<R>();
 
   constructor() {}
 
-  fulfill(s: capnp.Struct) {
+  fulfill(s: R) {
     this.answer = new ImmediateAnswer(s);
     const queues = this.emptyQueue(s);
     const ctab = (s.segment.message as SuperMessage).capTable;
@@ -150,17 +151,20 @@ export class Fulfiller implements Answer {
     this.deferred.reject(err);
   }
 
-  peek(): Answer | undefined {
+  peek(): Answer<R> | undefined {
     return this.answer;
   }
 
-  async struct(): Promise<capnp.Struct> {
+  async struct(): Promise<R> {
     return await this.deferred.promise;
   }
 
   // pipelineCall calls pipelineCall on the fulfilled answer or
   // queues the call if f has not been fulfilled
-  pipelineCall(transform: PipelineOp[], call: Call): Answer {
+  pipelineCall<R2 extends Struct>(
+    transform: PipelineOp[],
+    call: Call<R, R2>,
+  ): Answer<R2> {
     // Fast path: pass-through after fulfilled
     {
       const a = this.peek();
@@ -173,7 +177,7 @@ export class Fulfiller implements Answer {
       return new ErrorAnswer(new ErrCallQueueFull());
     }
     const cc = copyCall(call);
-    const g = new Fulfiller();
+    const g = new Fulfiller<R2>();
     this.queue.push(<pcall>{
       transform,
       call: cc,
@@ -223,13 +227,13 @@ export class Fulfiller implements Answer {
 }
 
 // ecall is a queued embargoed call
-export interface ecall {
-  call: Call;
-  f: Fulfiller;
+interface ecall {
+  call: Call<any, any>;
+  f: Fulfiller<any>;
 }
 
 // pcall is a queued pipeline call
-export interface pcall extends ecall {
+interface pcall extends ecall {
   transform: PipelineOp[];
 }
 
