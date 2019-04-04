@@ -5,9 +5,9 @@ require("source-map-support").install({
 import * as capnp from "capnp-ts";
 import { ObjectSize as __O, Struct as __S } from "capnp-ts";
 import { connect } from "./connect";
-import { Transport } from "./transport";
-import { Conn, clientFromResolution } from "./rpc";
-import { Call, PipelineClient, Client, Answer, Pipeline } from "./capability";
+import { TCPTransport } from "./tcp-transport";
+import { Conn, Call, Client, Pipeline } from "capnp-ts";
+
 import {
   Calculator,
   Calculator_Expression,
@@ -65,7 +65,9 @@ class RemoteCalculator {
 }
 
 class Calculator_evaluate_Results_Promise {
-  constructor(public pipeline: Pipeline<Calculator_evaluate_Results>) {}
+  constructor(
+    public pipeline: Pipeline<any, any, Calculator_evaluate_Results>,
+  ) {}
 
   getValue(): RemoteCalculator_Value {
     return new RemoteCalculator_Value(
@@ -122,7 +124,7 @@ class RemoteCalculator_Value {
 }
 
 class Calculator_Value_read_Promise {
-  constructor(public pipeline: Pipeline<Calculator_Value>) {}
+  constructor(public pipeline: Pipeline<any, any, Calculator_Value>) {}
 
   async struct(): Promise<Calculator_Value_read_Results | null> {
     const s = await this.pipeline.struct();
@@ -135,32 +137,32 @@ class Calculator_Value_read_Promise {
 
 export async function doClient() {
   const socket = await connect("127.0.0.1:9494");
-  const transport = new Transport(socket);
-  const conn = new Conn(transport);
+  const transport = new TCPTransport(socket);
+  const conn = new Conn(transport, require("weak"));
   const client = await conn.bootstrap();
   console.log(`Bootstrapped! client = `, client);
 
   const calc = new RemoteCalculator(client);
-  // const result = (await calc
-  //   .evaluate(params => params.initExpression().setLiteral(123))
-  //   .getValue()
-  //   .read()
-  //   .struct())!.getValue();
-  // console.log(`result = `, result);
-
-  await new Promise(resolve => setTimeout(resolve, 250));
-  console.log(`\n\n\n\n`);
-
-  let a = calc.evaluate(params => params.initExpression().setLiteral(123));
-
-  await new Promise(resolve => setTimeout(resolve, 250));
-  console.log(`\n\n\n\n`);
-
-  let b = (await a
+  const result = (await calc
+    .evaluate(params => params.initExpression().setLiteral(123))
     .getValue()
     .read()
     .struct())!.getValue();
-  console.log(`result = `, b);
+  console.log(`result = `, result);
+
+  // await new Promise(resolve => setTimeout(resolve, 250));
+  // console.log(`\n\n\n\n`);
+
+  // let a = calc.evaluate(params => params.initExpression().setLiteral(123));
+
+  // await new Promise(resolve => setTimeout(resolve, 250));
+  // console.log(`\n\n\n\n`);
+
+  // let b = (await a
+  //   .getValue()
+  //   .read()
+  //   .struct())!.getValue();
+  // console.log(`result = `, b);
 
   process.exit(0);
 }
