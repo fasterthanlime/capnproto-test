@@ -12,20 +12,11 @@ import {
   Calculator,
   Calculator_Expression,
   Calculator_Value,
+  Calculator_Value_Read$Params,
+  Calculator_Value_Read$Results,
   Calculator_Evaluate$Params,
+  Calculator_Evaluate$Results,
 } from "./calculator.capnp";
-
-class Calculator_evaluate_Results extends __S {
-  static readonly _capnp = {
-    displayName: "Calculator_evaluate_Results",
-    id: "0x81b1a3f55887a61",
-    size: new __O(0, 1),
-  };
-
-  getValue(): Calculator_Value {
-    return __S.getStruct(0, Calculator_Value, this);
-  }
-}
 
 class RemoteCalculator {
   constructor(public client: Client) {}
@@ -36,7 +27,7 @@ class RemoteCalculator {
     const answer = this.client.call({
       method: {
         ParamsClass: Calculator_Evaluate$Params,
-        ResultsClass: Calculator_evaluate_Results,
+        ResultsClass: Calculator_Evaluate$Results,
         interfaceID: capnp.Uint64.fromHexString(Calculator._capnp.id),
         methodID: 0,
         interfaceName: "calculator.capnp:Calculator",
@@ -48,14 +39,14 @@ class RemoteCalculator {
         }
       },
     });
-    const pipeline = new Pipeline(Calculator_evaluate_Results, answer);
+    const pipeline = new Pipeline(Calculator_Evaluate$Results, answer);
     return new Calculator_evaluate_Results_Promise(pipeline);
   }
 }
 
 class Calculator_evaluate_Results_Promise {
   constructor(
-    public pipeline: Pipeline<any, any, Calculator_evaluate_Results>,
+    public pipeline: Pipeline<any, any, Calculator_Evaluate$Results>,
   ) {}
 
   getValue(): RemoteCalculator_Value {
@@ -65,49 +56,29 @@ class Calculator_evaluate_Results_Promise {
   }
 }
 
-class Calculator_Value_read_Params extends __S {
-  static readonly _capnp = {
-    displayName: "Calculator_Value_read_Params",
-    id: "d3532574d58db558",
-    size: new __O(0, 0),
-  };
-}
-
-class Calculator_Value_read_Results extends __S {
-  static readonly _capnp = {
-    displayName: "Calculator_Value_read_Results",
-    id: "e6be6723122ae822",
-    size: new __O(8, 0),
-  };
-
-  getValue(): number {
-    return __S.getFloat64(0, this);
-  }
-}
-
 class RemoteCalculator_Value {
   constructor(public client: Client) {}
 
   read(
-    f?: (params: Calculator_Value_read_Params) => void,
+    f?: (params: Calculator_Value_Read$Params) => void,
   ): Calculator_Value_read_Promise {
     const answer = this.client.call({
       method: {
-        ParamsClass: Calculator_Value_read_Params,
-        ResultsClass: Calculator_Value_read_Results,
+        ParamsClass: Calculator_Value_Read$Params,
+        ResultsClass: Calculator_Value_Read$Results,
         interfaceID: capnp.Uint64.fromHexString(Calculator_Value._capnp.id),
         methodID: 0,
         interfaceName: "calculator.capnp:Calculator.Value",
         methodName: "read",
       },
       paramsFunc: (_s: capnp.Struct) => {
-        const params = __S.getAs(Calculator_Value_read_Params, _s);
+        const params = __S.getAs(Calculator_Value_Read$Params, _s);
         if (f) {
           f(params);
         }
       },
     });
-    const pipeline = new Pipeline(Calculator_Value_read_Params, answer);
+    const pipeline = new Pipeline(Calculator_Value_Read$Params, answer);
     return new Calculator_Value_read_Promise(pipeline);
   }
 }
@@ -115,12 +86,12 @@ class RemoteCalculator_Value {
 class Calculator_Value_read_Promise {
   constructor(public pipeline: Pipeline<any, any, Calculator_Value>) {}
 
-  async struct(): Promise<Calculator_Value_read_Results | null> {
+  async struct(): Promise<Calculator_Value_Read$Results | null> {
     const s = await this.pipeline.struct();
     if (!s) {
       return null;
     }
-    return __S.getAs(Calculator_Value_read_Results, s);
+    return __S.getAs(Calculator_Value_Read$Results, s);
   }
 }
 
