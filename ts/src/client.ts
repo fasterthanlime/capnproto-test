@@ -12,19 +12,8 @@ import {
   Calculator,
   Calculator_Expression,
   Calculator_Value,
+  Calculator_Evaluate$Params,
 } from "./calculator.capnp";
-
-class Calculator_evaluate_Params extends __S {
-  static readonly _capnp = {
-    displayName: "Calculator_evaluate_Params",
-    id: "bb0eaae1557a36d4",
-    size: new __O(0, 1),
-  };
-
-  initExpression(): Calculator_Expression {
-    return __S.initStructAt(0, Calculator_Expression, this);
-  }
-}
 
 class Calculator_evaluate_Results extends __S {
   static readonly _capnp = {
@@ -42,18 +31,18 @@ class RemoteCalculator {
   constructor(public client: Client) {}
 
   evaluate(
-    f?: (params: Calculator_evaluate_Params) => void,
+    f?: (params: Calculator_Evaluate$Params) => void,
   ): Calculator_evaluate_Results_Promise {
     const answer = this.client.call({
       method: {
-        ParamsClass: Calculator_evaluate_Params,
+        ParamsClass: Calculator_Evaluate$Params,
         ResultsClass: Calculator_evaluate_Results,
         interfaceID: capnp.Uint64.fromHexString(Calculator._capnp.id),
         methodID: 0,
         interfaceName: "calculator.capnp:Calculator",
         methodName: "evaluate",
       },
-      paramsFunc: (params: Calculator_evaluate_Params) => {
+      paramsFunc: (params: Calculator_Evaluate$Params) => {
         if (f) {
           f(params);
         }
