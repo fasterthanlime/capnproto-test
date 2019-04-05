@@ -78,13 +78,15 @@ class RemoteCalculator_Value {
         }
       },
     });
-    const pipeline = new Pipeline(Calculator_Value_Read$Params, answer);
+    const pipeline = new Pipeline(Calculator_Value_Read$Results, answer);
     return new Calculator_Value_read_Promise(pipeline);
   }
 }
 
 class Calculator_Value_read_Promise {
-  constructor(public pipeline: Pipeline<any, any, Calculator_Value>) {}
+  constructor(
+    public pipeline: Pipeline<any, any, Calculator_Value_Read$Results>,
+  ) {}
 
   async struct(): Promise<Calculator_Value_Read$Results | null> {
     const s = await this.pipeline.struct();
@@ -100,29 +102,55 @@ export async function doClient() {
   const transport = new TCPTransport(socket);
   const conn = new Conn(transport, require("weak"));
   const client = await conn.bootstrap();
-  console.log(`Bootstrapped! client = `, client);
-
   const calc = new RemoteCalculator(client);
-  const result = (await calc
-    .evaluate(params => params.initExpression().setLiteral(123))
-    .getValue()
-    .read()
-    .struct())!.getValue();
-  console.log(`result = `, result);
 
-  // await new Promise(resolve => setTimeout(resolve, 250));
-  // console.log(`\n\n\n\n`);
+  async function doPipelined() {
+    const pipeline = calc
+      .evaluate(params => {
+        params.initExpression().setLiteral(123);
+      })
+      .getValue()
+      .read()
+      .struct();
+    const result = (await pipeline)!.getValue();
+    console.log(`(pipelined) result = ${result}`);
+  }
 
-  // let a = calc.evaluate(params => params.initExpression().setLiteral(123));
+  async function doNotPipelined() {
+    await new Promise(resolve => setTimeout(resolve, 250));
+    let a = calc.evaluate(params => params.initExpression().setLiteral(123));
+    await new Promise(resolve => setTimeout(resolve, 250));
 
-  // await new Promise(resolve => setTimeout(resolve, 250));
-  // console.log(`\n\n\n\n`);
+    let resultsStruct = (await a.pipeline.struct())!;
+    console.log(`results struct = ${resultsStruct}`);
+    console.log(`results interface = ${resultsStruct.getValue()}`);
+    console.log(
+      `results interface capID = ${resultsStruct.getValue().getCapID()}`,
+    );
+    console.log(`\n\n`);
 
-  // let b = (await a
-  //   .getValue()
-  //   .read()
-  //   .struct())!.getValue();
-  // console.log(`result = `, b);
+    let b = (await a
+      .getValue()
+      .read()
+      .struct())!.getValue();
+    console.log(`(non-pipelined) result = ${b}`);
+  }
+
+  async function doComplex() {
+    let a = calc.evaluate(params => params.initExpression().setLiteral(123));
+
+    let b = (await a
+      .getValue()
+      .read()
+      .struct())!.getValue();
+    console.log(`(non-pipelined) result = ${b}`);
+  }
+
+  await doPipelined();
+  console.log("=================");
+  await doNotPipelined();
+  console.log("=================");
+  await doComplex();
 
   process.exit(0);
 }

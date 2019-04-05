@@ -5,13 +5,13 @@
  */
 
 import * as capnp from "capnp-ts";
-import { ObjectSize as __O, Struct as __S } from 'capnp-ts';
+import { ObjectSize as __O, Struct as __S, Interface as __I } from 'capnp-ts';
 export const _capnpFileId = "85150b117366d14b";
 export class Calculator_Expression_Call extends __S {
     static readonly _capnp = { displayName: "call", id: "d99522a3d3878d66", size: new __O(16, 2) };
     static _Params: capnp.ListCtor<Calculator_Expression>;
-    getFunction(): capnp.Interface { return __S.getPointerAs(0, capnp.Interface, this); }
-    setFunction(value: capnp.Interface): void { __S.copyFrom(value, __S.getPointer(0, this)); }
+    getFunction(): Calculator_Function { return __S.getPointerAs(0, Calculator_Function, this); }
+    setFunction(value: Calculator_Function): void { __S.copyFrom(value, __S.getPointer(0, this)); }
     adoptParams(value: capnp.Orphan<capnp.List<Calculator_Expression>>): void { __S.adopt(value, __S.getPointer(1, this)); }
     disownParams(): capnp.Orphan<capnp.List<Calculator_Expression>> { return __S.disown(this.getParams()); }
     getParams(): capnp.List<Calculator_Expression> { return __S.getList(1, Calculator_Expression_Call._Params, this); }
@@ -41,12 +41,12 @@ export class Calculator_Expression extends __S {
         __S.setUint16(8, 0, this);
         __S.setFloat64(0, value, this);
     }
-    getPreviousResult(): capnp.Interface {
+    getPreviousResult(): Calculator_Value {
         __S.testWhich("previousResult", __S.getUint16(8, this), 1, this);
-        return __S.getPointerAs(0, capnp.Interface, this);
+        return __S.getPointerAs(0, Calculator_Value, this);
     }
     isPreviousResult(): boolean { return __S.getUint16(8, this) === 1; }
-    setPreviousResult(value: capnp.Interface): void {
+    setPreviousResult(value: Calculator_Value): void {
         __S.setUint16(8, 1, this);
         __S.copyFrom(value, __S.getPointer(0, this));
     }
@@ -82,17 +82,21 @@ export class Calculator_Value_Read$Results extends __S {
     setValue(value: number): void { __S.setFloat64(0, value, this); }
     toString(): string { return "Calculator_Value_Read$Results_" + super.toString(); }
 }
-export class Calculator_Value_Client {
+export class Calculator_Value$Client {
+    constructor(client: capnp.Client) {
+        this.client = client;
+    }
+    client: capnp.Client;
     read(): void {
     }
 }
-export class Calculator_Value_Server {
+export class Calculator_Value$Server {
     read(): void {
     }
 }
-export class Calculator_Value extends __S {
-    static readonly Client = Calculator_Value_Client;
-    static readonly Server = Calculator_Value_Server;
+export class Calculator_Value extends __I {
+    static readonly Client = Calculator_Value$Client;
+    static readonly Server = Calculator_Value$Server;
     static readonly _capnp = { displayName: "Value", id: "c3e69d34d3ee48d2", size: new __O(0, 0) };
     toString(): string { return "Calculator_Value_" + super.toString(); }
 }
@@ -112,17 +116,21 @@ export class Calculator_Function_Call$Results extends __S {
     setValue(value: number): void { __S.setFloat64(0, value, this); }
     toString(): string { return "Calculator_Function_Call$Results_" + super.toString(); }
 }
-export class Calculator_Function_Client {
+export class Calculator_Function$Client {
+    constructor(client: capnp.Client) {
+        this.client = client;
+    }
+    client: capnp.Client;
     call(): void {
     }
 }
-export class Calculator_Function_Server {
+export class Calculator_Function$Server {
     call(): void {
     }
 }
-export class Calculator_Function extends __S {
-    static readonly Client = Calculator_Function_Client;
-    static readonly Server = Calculator_Function_Server;
+export class Calculator_Function extends __I {
+    static readonly Client = Calculator_Function$Client;
+    static readonly Server = Calculator_Function$Server;
     static readonly _capnp = { displayName: "Function", id: "ede83a3d96840394", size: new __O(0, 0) };
     toString(): string { return "Calculator_Function_" + super.toString(); }
 }
@@ -144,8 +152,8 @@ export class Calculator_Evaluate$Params extends __S {
 }
 export class Calculator_Evaluate$Results extends __S {
     static readonly _capnp = { displayName: "evaluate$Results", id: "81b1a3f55887a611", size: new __O(0, 1) };
-    getValue(): capnp.Interface { return __S.getPointerAs(0, capnp.Interface, this); }
-    setValue(value: capnp.Interface): void { __S.copyFrom(value, __S.getPointer(0, this)); }
+    getValue(): Calculator_Value { return __S.getPointerAs(0, Calculator_Value, this); }
+    setValue(value: Calculator_Value): void { __S.copyFrom(value, __S.getPointer(0, this)); }
     toString(): string { return "Calculator_Evaluate$Results_" + super.toString(); }
 }
 export class Calculator_DefFunction$Params extends __S {
@@ -162,8 +170,8 @@ export class Calculator_DefFunction$Params extends __S {
 }
 export class Calculator_DefFunction$Results extends __S {
     static readonly _capnp = { displayName: "defFunction$Results", id: "8d24f465047cd6c8", size: new __O(0, 1) };
-    getFunc(): capnp.Interface { return __S.getPointerAs(0, capnp.Interface, this); }
-    setFunc(value: capnp.Interface): void { __S.copyFrom(value, __S.getPointer(0, this)); }
+    getFunc(): Calculator_Function { return __S.getPointerAs(0, Calculator_Function, this); }
+    setFunc(value: Calculator_Function): void { __S.copyFrom(value, __S.getPointer(0, this)); }
     toString(): string { return "Calculator_DefFunction$Results_" + super.toString(); }
 }
 export class Calculator_GetOperator$Params extends __S {
@@ -174,11 +182,15 @@ export class Calculator_GetOperator$Params extends __S {
 }
 export class Calculator_GetOperator$Results extends __S {
     static readonly _capnp = { displayName: "getOperator$Results", id: "d18fbb7763c08c20", size: new __O(0, 1) };
-    getFunc(): capnp.Interface { return __S.getPointerAs(0, capnp.Interface, this); }
-    setFunc(value: capnp.Interface): void { __S.copyFrom(value, __S.getPointer(0, this)); }
+    getFunc(): Calculator_Function { return __S.getPointerAs(0, Calculator_Function, this); }
+    setFunc(value: Calculator_Function): void { __S.copyFrom(value, __S.getPointer(0, this)); }
     toString(): string { return "Calculator_GetOperator$Results_" + super.toString(); }
 }
-export class Calculator_Client {
+export class Calculator$Client {
+    constructor(client: capnp.Client) {
+        this.client = client;
+    }
+    client: capnp.Client;
     evaluate(): void {
     }
     defFunction(): void {
@@ -186,7 +198,7 @@ export class Calculator_Client {
     getOperator(): void {
     }
 }
-export class Calculator_Server {
+export class Calculator$Server {
     evaluate(): void {
     }
     defFunction(): void {
@@ -194,13 +206,13 @@ export class Calculator_Server {
     getOperator(): void {
     }
 }
-export class Calculator extends __S {
+export class Calculator extends __I {
     static readonly Expression = Calculator_Expression;
     static readonly Value = Calculator_Value;
     static readonly Function = Calculator_Function;
     static readonly Operator = Calculator_Operator;
-    static readonly Client = Calculator_Client;
-    static readonly Server = Calculator_Server;
+    static readonly Client = Calculator$Client;
+    static readonly Server = Calculator$Server;
     static readonly _capnp = { displayName: "Calculator", id: "97983392df35cc36", size: new __O(0, 0) };
     toString(): string { return "Calculator_" + super.toString(); }
 }

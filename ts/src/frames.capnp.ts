@@ -5,7 +5,7 @@
  */
 
 import * as capnp from "capnp-ts";
-import { ObjectSize as __O, Struct as __S } from 'capnp-ts';
+import { ObjectSize as __O, Struct as __S, Interface as __I } from 'capnp-ts';
 export const _capnpFileId = "f707573bf7bf8fda";
 export class Rational extends __S {
     static readonly _capnp = { displayName: "Rational", id: "e600925993c23cf3", size: new __O(8, 0) };

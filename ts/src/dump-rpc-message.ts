@@ -7,10 +7,13 @@ import {
 } from "capnp-ts/lib/std/rpc.capnp";
 import { RPCMessage } from "capnp-ts";
 
+import initTrace from "debug";
+const trace = initTrace("capnp:rpc:dump");
+
 export function dumpRPCMessage(prefix: string, root: RPCMessage) {
-  console.log("=====================");
-  let log = (...args: any[]) => {
-    console.log(prefix, ...args);
+  trace("=====================");
+  let log = (fmt: string, ...args: any[]) => {
+    trace(prefix + fmt, ...args);
   };
 
   log(`message: ${Message_Which[root.which()]}`);
@@ -48,11 +51,11 @@ export function dumpRPCMessage(prefix: string, root: RPCMessage) {
           break;
         }
         default:
-          console.log(`Unknown return type`);
+          trace(`Unknown return type`);
       }
       break;
     }
     default:
-      console.log(`Unknown message type`);
+      trace(`Unknown message type`);
   }
 }
