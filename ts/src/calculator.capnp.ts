@@ -82,17 +82,39 @@ export class Calculator_Value_Read$Results extends __S {
     setValue(value: number): void { __S.setFloat64(0, value, this); }
     toString(): string { return "Calculator_Value_Read$Results_" + super.toString(); }
 }
+export class Calculator_Value_Read$Results$Promise {
+    pipeline: capnp.Pipeline<any, any, Calculator_Value_Read$Results>;
+    constructor(pipeline: capnp.Pipeline<any, any, Calculator_Value_Read$Results>) {
+        this.pipeline = pipeline;
+    }
+    async promise(): Promise<Calculator_Value_Read$Results> {
+        return await this.pipeline.struct();
+    }
+}
 export class Calculator_Value$Client {
+    client: capnp.Client;
+    static readonly interfaceId: capnp.Uint64 = capnp.Uint64.fromHexString("c3e69d34d3ee48d2");
     constructor(client: capnp.Client) {
         this.client = client;
     }
-    client: capnp.Client;
-    read(): void {
+    static readonly read$method: capnp.Method<Calculator_Value_Read$Params, Calculator_Value_Read$Results> = {
+        ParamsClass: Calculator_Value_Read$Params,
+        ResultsClass: Calculator_Value_Read$Results,
+        interfaceId: Calculator_Value$Client.interfaceId,
+        methodId: 0,
+        interfaceName: "calculator.capnp:Calculator.Value",
+        methodName: "read"
+    };
+    read(paramsFunc?: (params: Calculator_Value_Read$Params) => void): Calculator_Value_Read$Results$Promise {
+        var answer = this.client.call({
+            method: Calculator_Value$Client.read$method,
+            paramsFunc: paramsFunc
+        });
+        var pipeline = new capnp.Pipeline(Calculator_Value_Read$Results, answer);
+        return new Calculator_Value_Read$Results$Promise(pipeline);
     }
 }
 export class Calculator_Value$Server {
-    read(): void {
-    }
 }
 export class Calculator_Value extends __I {
     static readonly Client = Calculator_Value$Client;
@@ -116,17 +138,39 @@ export class Calculator_Function_Call$Results extends __S {
     setValue(value: number): void { __S.setFloat64(0, value, this); }
     toString(): string { return "Calculator_Function_Call$Results_" + super.toString(); }
 }
+export class Calculator_Function_Call$Results$Promise {
+    pipeline: capnp.Pipeline<any, any, Calculator_Function_Call$Results>;
+    constructor(pipeline: capnp.Pipeline<any, any, Calculator_Function_Call$Results>) {
+        this.pipeline = pipeline;
+    }
+    async promise(): Promise<Calculator_Function_Call$Results> {
+        return await this.pipeline.struct();
+    }
+}
 export class Calculator_Function$Client {
+    client: capnp.Client;
+    static readonly interfaceId: capnp.Uint64 = capnp.Uint64.fromHexString("ede83a3d96840394");
     constructor(client: capnp.Client) {
         this.client = client;
     }
-    client: capnp.Client;
-    call(): void {
+    static readonly call$method: capnp.Method<Calculator_Function_Call$Params, Calculator_Function_Call$Results> = {
+        ParamsClass: Calculator_Function_Call$Params,
+        ResultsClass: Calculator_Function_Call$Results,
+        interfaceId: Calculator_Function$Client.interfaceId,
+        methodId: 0,
+        interfaceName: "calculator.capnp:Calculator.Function",
+        methodName: "call"
+    };
+    call(paramsFunc?: (params: Calculator_Function_Call$Params) => void): Calculator_Function_Call$Results$Promise {
+        var answer = this.client.call({
+            method: Calculator_Function$Client.call$method,
+            paramsFunc: paramsFunc
+        });
+        var pipeline = new capnp.Pipeline(Calculator_Function_Call$Results, answer);
+        return new Calculator_Function_Call$Results$Promise(pipeline);
     }
 }
 export class Calculator_Function$Server {
-    call(): void {
-    }
 }
 export class Calculator_Function extends __I {
     static readonly Client = Calculator_Function$Client;
@@ -156,6 +200,18 @@ export class Calculator_Evaluate$Results extends __S {
     setValue(value: Calculator_Value): void { __S.copyFrom(value, __S.getPointer(0, this)); }
     toString(): string { return "Calculator_Evaluate$Results_" + super.toString(); }
 }
+export class Calculator_Evaluate$Results$Promise {
+    pipeline: capnp.Pipeline<any, any, Calculator_Evaluate$Results>;
+    constructor(pipeline: capnp.Pipeline<any, any, Calculator_Evaluate$Results>) {
+        this.pipeline = pipeline;
+    }
+    getValue(): Calculator_Value$Client {
+        return new Calculator_Value$Client(this.pipeline.getPipeline(Calculator_Value, 0).client());
+    }
+    async promise(): Promise<Calculator_Evaluate$Results> {
+        return await this.pipeline.struct();
+    }
+}
 export class Calculator_DefFunction$Params extends __S {
     static readonly _capnp = { displayName: "defFunction$Params", id: "f287bcba4556dc89", size: new __O(8, 1) };
     getParamCount(): number { return __S.getInt32(0, this); }
@@ -174,6 +230,18 @@ export class Calculator_DefFunction$Results extends __S {
     setFunc(value: Calculator_Function): void { __S.copyFrom(value, __S.getPointer(0, this)); }
     toString(): string { return "Calculator_DefFunction$Results_" + super.toString(); }
 }
+export class Calculator_DefFunction$Results$Promise {
+    pipeline: capnp.Pipeline<any, any, Calculator_DefFunction$Results>;
+    constructor(pipeline: capnp.Pipeline<any, any, Calculator_DefFunction$Results>) {
+        this.pipeline = pipeline;
+    }
+    getFunc(): Calculator_Function$Client {
+        return new Calculator_Function$Client(this.pipeline.getPipeline(Calculator_Function, 0).client());
+    }
+    async promise(): Promise<Calculator_DefFunction$Results> {
+        return await this.pipeline.struct();
+    }
+}
 export class Calculator_GetOperator$Params extends __S {
     static readonly _capnp = { displayName: "getOperator$Params", id: "8a8dceb4f4a3c530", size: new __O(8, 0) };
     getOp(): Calculator_Operator { return __S.getUint16(0, this); }
@@ -186,25 +254,74 @@ export class Calculator_GetOperator$Results extends __S {
     setFunc(value: Calculator_Function): void { __S.copyFrom(value, __S.getPointer(0, this)); }
     toString(): string { return "Calculator_GetOperator$Results_" + super.toString(); }
 }
+export class Calculator_GetOperator$Results$Promise {
+    pipeline: capnp.Pipeline<any, any, Calculator_GetOperator$Results>;
+    constructor(pipeline: capnp.Pipeline<any, any, Calculator_GetOperator$Results>) {
+        this.pipeline = pipeline;
+    }
+    getFunc(): Calculator_Function$Client {
+        return new Calculator_Function$Client(this.pipeline.getPipeline(Calculator_Function, 0).client());
+    }
+    async promise(): Promise<Calculator_GetOperator$Results> {
+        return await this.pipeline.struct();
+    }
+}
 export class Calculator$Client {
+    client: capnp.Client;
+    static readonly interfaceId: capnp.Uint64 = capnp.Uint64.fromHexString("97983392df35cc36");
     constructor(client: capnp.Client) {
         this.client = client;
     }
-    client: capnp.Client;
-    evaluate(): void {
+    static readonly evaluate$method: capnp.Method<Calculator_Evaluate$Params, Calculator_Evaluate$Results> = {
+        ParamsClass: Calculator_Evaluate$Params,
+        ResultsClass: Calculator_Evaluate$Results,
+        interfaceId: Calculator$Client.interfaceId,
+        methodId: 0,
+        interfaceName: "calculator.capnp:Calculator",
+        methodName: "evaluate"
+    };
+    evaluate(paramsFunc?: (params: Calculator_Evaluate$Params) => void): Calculator_Evaluate$Results$Promise {
+        var answer = this.client.call({
+            method: Calculator$Client.evaluate$method,
+            paramsFunc: paramsFunc
+        });
+        var pipeline = new capnp.Pipeline(Calculator_Evaluate$Results, answer);
+        return new Calculator_Evaluate$Results$Promise(pipeline);
     }
-    defFunction(): void {
+    static readonly defFunction$method: capnp.Method<Calculator_DefFunction$Params, Calculator_DefFunction$Results> = {
+        ParamsClass: Calculator_DefFunction$Params,
+        ResultsClass: Calculator_DefFunction$Results,
+        interfaceId: Calculator$Client.interfaceId,
+        methodId: 1,
+        interfaceName: "calculator.capnp:Calculator",
+        methodName: "defFunction"
+    };
+    defFunction(paramsFunc?: (params: Calculator_DefFunction$Params) => void): Calculator_DefFunction$Results$Promise {
+        var answer = this.client.call({
+            method: Calculator$Client.defFunction$method,
+            paramsFunc: paramsFunc
+        });
+        var pipeline = new capnp.Pipeline(Calculator_DefFunction$Results, answer);
+        return new Calculator_DefFunction$Results$Promise(pipeline);
     }
-    getOperator(): void {
+    static readonly getOperator$method: capnp.Method<Calculator_GetOperator$Params, Calculator_GetOperator$Results> = {
+        ParamsClass: Calculator_GetOperator$Params,
+        ResultsClass: Calculator_GetOperator$Results,
+        interfaceId: Calculator$Client.interfaceId,
+        methodId: 2,
+        interfaceName: "calculator.capnp:Calculator",
+        methodName: "getOperator"
+    };
+    getOperator(paramsFunc?: (params: Calculator_GetOperator$Params) => void): Calculator_GetOperator$Results$Promise {
+        var answer = this.client.call({
+            method: Calculator$Client.getOperator$method,
+            paramsFunc: paramsFunc
+        });
+        var pipeline = new capnp.Pipeline(Calculator_GetOperator$Results, answer);
+        return new Calculator_GetOperator$Results$Promise(pipeline);
     }
 }
 export class Calculator$Server {
-    evaluate(): void {
-    }
-    defFunction(): void {
-    }
-    getOperator(): void {
-    }
 }
 export class Calculator extends __I {
     static readonly Expression = Calculator_Expression;

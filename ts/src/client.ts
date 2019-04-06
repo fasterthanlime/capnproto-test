@@ -10,6 +10,7 @@ import { Conn, Call, Client, Pipeline } from "capnp-ts";
 
 import {
   Calculator,
+  Calculator$Client,
   Calculator_Expression,
   Calculator_Value,
   Calculator_Value_Read$Params,
@@ -28,8 +29,8 @@ class RemoteCalculator {
       method: {
         ParamsClass: Calculator_Evaluate$Params,
         ResultsClass: Calculator_Evaluate$Results,
-        interfaceID: capnp.Uint64.fromHexString(Calculator._capnp.id),
-        methodID: 0,
+        interfaceId: capnp.Uint64.fromHexString(Calculator._capnp.id),
+        methodId: 0,
         interfaceName: "calculator.capnp:Calculator",
         methodName: "evaluate",
       },
@@ -66,13 +67,12 @@ class RemoteCalculator_Value {
       method: {
         ParamsClass: Calculator_Value_Read$Params,
         ResultsClass: Calculator_Value_Read$Results,
-        interfaceID: capnp.Uint64.fromHexString(Calculator_Value._capnp.id),
-        methodID: 0,
+        interfaceId: capnp.Uint64.fromHexString(Calculator_Value._capnp.id),
+        methodId: 0,
         interfaceName: "calculator.capnp:Calculator.Value",
         methodName: "read",
       },
-      paramsFunc: (_s: capnp.Struct) => {
-        const params = __S.getAs(Calculator_Value_Read$Params, _s);
+      paramsFunc: (params: Calculator_Value_Read$Params) => {
         if (f) {
           f(params);
         }
@@ -89,11 +89,7 @@ class Calculator_Value_read_Promise {
   ) {}
 
   async struct(): Promise<Calculator_Value_Read$Results | null> {
-    const s = await this.pipeline.struct();
-    if (!s) {
-      return null;
-    }
-    return __S.getAs(Calculator_Value_Read$Results, s);
+    return await this.pipeline.struct();
   }
 }
 
@@ -146,11 +142,23 @@ export async function doClient() {
     console.log(`(non-pipelined) result = ${b}`);
   }
 
+  async function doGenerated() {
+    const calc = new Calculator$Client(client);
+    const req = calc
+      .evaluate(params => params.initExpression().setLiteral(456))
+      .getValue()
+      .read()
+      .promise();
+    console.log(`(generated) result = ${(await req).getValue()}`);
+  }
+
   await doPipelined();
   console.log("=================");
   await doNotPipelined();
   console.log("=================");
   await doComplex();
+  console.log("=================");
+  await doGenerated();
 
   process.exit(0);
 }
