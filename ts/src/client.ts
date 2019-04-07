@@ -21,6 +21,9 @@ import {
   Calculator_Value_Read$Results,
   Calculator_Evaluate$Params,
   Calculator_Evaluate$Results,
+  Calculator_Function_Call$Params,
+  Calculator_Function_Call$Results,
+  Calculator_Function$Client,
 } from "./calculator.capnp";
 
 export async function doClient() {
@@ -72,22 +75,22 @@ export async function doClient() {
 
     let req = calc
       .evaluate(params => {
+        const onePlusTwo = calc
+          .evaluate(params => {
+            let expr = params.initExpression();
+            let call = expr.initCall();
+            call.setFunction(add);
+            let args = call.initParams(2);
+            args.get(0).setLiteral(1);
+            args.get(1).setLiteral(2);
+          })
+          .getValue();
+
         let expr = params.initExpression();
         let call = expr.initCall();
         call.setFunction(add);
         let args = call.initParams(2);
-        args.get(0).setPreviousResult(
-          calc
-            .evaluate(params => {
-              let expr = params.initExpression();
-              let call = expr.initCall();
-              call.setFunction(add);
-              let args = call.initParams(2);
-              args.get(0).setLiteral(1);
-              args.get(1).setLiteral(2);
-            })
-            .getValue(),
-        );
+        args.get(0).setPreviousResult(onePlusTwo);
         args.get(1).setLiteral(4);
       })
       .getValue()
@@ -97,13 +100,48 @@ export async function doClient() {
     console.log(`(call) (1 + 2) + 4 = ${(await req).getValue()}`);
   }
 
+  async function doUserDef() {
+    calc.evaluate(params => {
+      let expr = params.initExpression();
+      let call = expr.initCall();
+      call.setFunction(
+        new Calculator_Function$Client(
+          new capnp.Server([
+            {
+              ParamsClass: Calculator_Function_Call$Params,
+              ResultsClass: Calculator_Function_Call$Results,
+              interfaceId: Calculator_Function$Client.interfaceId,
+              methodId: 0,
+              interfaceName: "calculator.capnp:Calculator.Function",
+              methodName: "call",
+              impl: async (
+                params: Calculator_Function_Call$Params,
+                results: Calculator_Function_Call$Results,
+              ) => {
+                console.log(`local function called, params = `, params);
+                results.setValue(1024);
+                return;
+              },
+            },
+          ]),
+        ),
+      );
+      let args = call.initParams(2);
+      args.get(0).setLiteral(13);
+      args.get(1).setLiteral(26);
+    });
+  }
+
   // await doLiteral();
   // console.log("=================");
 
   // await doCall();
   // console.log("=================");
 
-  await doComplexCall();
+  // await doComplexCall();
+  // console.log("=================");
+
+  await doUserDef();
   console.log("=================");
 
   process.exit(0);
