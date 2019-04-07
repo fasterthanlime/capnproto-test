@@ -63,6 +63,8 @@ func (cs *calculatorServer) DefFunction(call calculator.Calculator_defFunction) 
 }
 
 func (cs *calculatorServer) Evaluate(call calculator.Calculator_evaluate) error {
+	ctx := call.Ctx
+
 	expr, err := call.Params.Expression()
 	if err != nil {
 		return err
@@ -74,13 +76,86 @@ func (cs *calculatorServer) Evaluate(call calculator.Calculator_evaluate) error 
 		log.Printf("Evaluating literal %v", expr.Literal())
 		call.Results.SetValue(calculator.Calculator_Value_ServerToClient(vs))
 		return nil
+	case calculator.Calculator_Expression_Which_call:
+		log.Printf("Evaluating call %v", expr.Call())
+		ecall := expr.Call()
+
+		log.Printf("Ecall function: %v", ecall.Function())
+
+		cres, err := ecall.Function().Call(ctx, func(params calculator.Calculator_Function_call_Params) error {
+			cparams, err := ecall.Params()
+			if err != nil {
+				return err
+			}
+			pparams, err := params.NewParams(int32(cparams.Len()))
+			if err != nil {
+				return err
+			}
+
+			log.Printf("In ecall function, num params: %v", cparams.Len())
+			for i := 0; i < cparams.Len(); i++ {
+				cparam := cparams.At(i)
+				switch cparam.Which() {
+				case calculator.Calculator_Expression_Which_literal:
+					pparams.Set(i, cparam.Literal())
+				case calculator.Calculator_Expression_Which_previousResult:
+					expr := cparam.PreviousResult()
+					ee := expr.Read(ctx, func(params calculator.Calculator_Value_read_Params) error { return nil })
+					results, err := ee.Struct()
+					if err != nil {
+						return err
+					}
+					pparams.Set(i, results.Value())
+				default:
+					return errors.Errorf("Calling function with %v param: unsupported", cparam.Which())
+				}
+			}
+			return nil
+		}).Struct()
+		if err != nil {
+			return err
+		}
+
+		vs := valueServer{value: cres.Value()}
+		call.Results.SetValue(calculator.Calculator_Value_ServerToClient(vs))
+		return nil
 	default:
 		return errors.Errorf("don't know how to evaluate %s yet", expr.Which())
 	}
 }
 
+type functionServer struct {
+	call func(call calculator.Calculator_Function_call) error
+}
+
+func (fs *functionServer) Call(call calculator.Calculator_Function_call) error {
+	return fs.call(call)
+}
+
 func (cs *calculatorServer) GetOperator(call calculator.Calculator_getOperator) error {
-	return errors.New("getOperator: stub!")
+	log.Printf("getOperator called! op = %v", call.Params.Op())
+
+	switch call.Params.Op() {
+	case calculator.Calculator_Operator_add:
+		fs := &functionServer{
+			call: func(call calculator.Calculator_Function_call) error {
+				var res float64
+				cparams, err := call.Params.Params()
+				if err != nil {
+					return err
+				}
+				for i := 0; i < cparams.Len(); i++ {
+					res += cparams.At(i)
+				}
+				call.Results.SetValue(res)
+				return nil
+			},
+		}
+		call.Results.SetFunc(calculator.Calculator_Function_ServerToClient(fs))
+	default:
+		return errors.New("Only the + operator is supported right now")
+	}
+	return nil
 }
 
 type debuggingTransport struct {

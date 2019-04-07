@@ -7,6 +7,10 @@ import { ObjectSize as __O, Struct as __S } from "capnp-ts";
 import { connect } from "./connect";
 import { TCPTransport } from "./tcp-transport";
 import { Conn, Call, Client, Pipeline } from "capnp-ts";
+import {
+  setInterfacePointer,
+  initPointer,
+} from "capnp-ts/lib/serialization/pointers/pointer";
 
 import {
   Calculator,
@@ -26,51 +30,81 @@ export async function doClient() {
   const client = await conn.bootstrap();
   const calc = new Calculator$Client(client);
 
-  async function doPipelined() {
+  async function doLiteral() {
     const calc = new Calculator$Client(client);
     const req = calc
-      .evaluate(params => params.initExpression().setLiteral(456))
+      .evaluate(params => params.initExpression().setLiteral(123))
       .getValue()
       .read()
       .promise();
     console.log(`(pipelined) result = ${(await req).getValue()}`);
   }
 
-  async function doNotPipelined() {
-    await new Promise(resolve => setTimeout(resolve, 250));
-    let a = calc.evaluate(params => params.initExpression().setLiteral(123));
-    await new Promise(resolve => setTimeout(resolve, 250));
-
-    let resultsStruct = (await a.pipeline.struct())!;
-    console.log(`results struct = ${resultsStruct}`);
-    console.log(`results interface = ${resultsStruct.getValue()}`);
-    console.log(
-      `results interface capID = ${resultsStruct.getValue().getCapID()}`,
-    );
-    console.log(`\n\n`);
-
-    let b = (await a
+  async function doCall() {
+    let req = calc
+      .evaluate(params => {
+        let expr = params.initExpression();
+        let call = expr.initCall();
+        call.setFunction(
+          calc
+            .getOperator(params => {
+              params.setOp(Calculator.Operator.ADD);
+            })
+            .getFunc(),
+        );
+        let args = call.initParams(2);
+        args.get(0).setLiteral(3);
+        args.get(1).setLiteral(4);
+      })
       .getValue()
       .read()
-      .promise()).getValue();
-    console.log(`(non-pipelined) result = ${b}`);
+      .promise();
+
+    console.log(`(call) 3 + 4 = ${(await req).getValue()}`);
   }
 
-  async function doComplex() {
-    let a = calc.evaluate(params => params.initExpression().setLiteral(123));
+  async function doComplexCall() {
+    let add = calc
+      .getOperator(params => {
+        params.setOp(Calculator.Operator.ADD);
+      })
+      .getFunc();
 
-    let b = (await a
+    let req = calc
+      .evaluate(params => {
+        let expr = params.initExpression();
+        let call = expr.initCall();
+        call.setFunction(add);
+        let args = call.initParams(2);
+        args.get(0).setPreviousResult(
+          calc
+            .evaluate(params => {
+              let expr = params.initExpression();
+              let call = expr.initCall();
+              call.setFunction(add);
+              let args = call.initParams(2);
+              args.get(0).setLiteral(1);
+              args.get(1).setLiteral(2);
+            })
+            .getValue(),
+        );
+        args.get(1).setLiteral(4);
+      })
       .getValue()
       .read()
-      .promise()).getValue();
-    console.log(`(complex) result = ${b}`);
+      .promise();
+
+    console.log(`(call) (1 + 2) + 4 = ${(await req).getValue()}`);
   }
 
-  await doPipelined();
+  // await doLiteral();
+  // console.log("=================");
+
+  // await doCall();
+  // console.log("=================");
+
+  await doComplexCall();
   console.log("=================");
-  await doNotPipelined();
-  console.log("=================");
-  await doComplex();
 
   process.exit(0);
 }
