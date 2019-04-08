@@ -73,14 +73,10 @@ func (cs *calculatorServer) Evaluate(call calculator.Calculator_evaluate) error 
 	switch expr.Which() {
 	case calculator.Calculator_Expression_Which_literal:
 		vs := valueServer{value: expr.Literal()}
-		log.Printf("Evaluating literal %v", expr.Literal())
 		call.Results.SetValue(calculator.Calculator_Value_ServerToClient(vs))
 		return nil
 	case calculator.Calculator_Expression_Which_call:
-		log.Printf("Evaluating call %v", expr.Call())
 		ecall := expr.Call()
-
-		log.Printf("Ecall function: %v", ecall.Function())
 
 		cres, err := ecall.Function().Call(ctx, func(params calculator.Calculator_Function_call_Params) error {
 			cparams, err := ecall.Params()
@@ -92,7 +88,6 @@ func (cs *calculatorServer) Evaluate(call calculator.Calculator_evaluate) error 
 				return err
 			}
 
-			log.Printf("In ecall function, num params: %v", cparams.Len())
 			for i := 0; i < cparams.Len(); i++ {
 				cparam := cparams.At(i)
 				switch cparam.Which() {

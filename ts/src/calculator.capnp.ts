@@ -10,7 +10,7 @@ export const _capnpFileId = "85150b117366d14b";
 export class Calculator_Expression_Call extends __S {
     static readonly _capnp = { displayName: "call", id: "d99522a3d3878d66", size: new __O(16, 2) };
     static _Params: capnp.ListCtor<Calculator_Expression>;
-    getFunction(): Calculator_Function$Client { return new Calculator_Function$Client(__S.getInterfaceClientOrNull(0, this)); }
+    getFunction(): Calculator_Function$Client { return new Calculator_Function$Client(__S.getInterfaceClientOrNullAt(0, this)); }
     setFunction(value: Calculator_Function$Client): void { __S.setInterfacePointer(this.segment.message.addCap(value.client), __S.getPointer(0, this)); }
     adoptParams(value: capnp.Orphan<capnp.List<Calculator_Expression>>): void { __S.adopt(value, __S.getPointer(1, this)); }
     disownParams(): capnp.Orphan<capnp.List<Calculator_Expression>> { return __S.disown(this.getParams()); }
@@ -43,7 +43,7 @@ export class Calculator_Expression extends __S {
     }
     getPreviousResult(): Calculator_Value$Client {
         __S.testWhich("previousResult", __S.getUint16(8, this), 1, this);
-        return new Calculator_Value$Client(__S.getInterfaceClientOrNull(0, this));
+        return new Calculator_Value$Client(__S.getInterfaceClientOrNullAt(0, this));
     }
     isPreviousResult(): boolean { return __S.getUint16(8, this) === 1; }
     setPreviousResult(value: Calculator_Value$Client): void {
@@ -196,7 +196,7 @@ export class Calculator_Evaluate$Params extends __S {
 }
 export class Calculator_Evaluate$Results extends __S {
     static readonly _capnp = { displayName: "evaluate$Results", id: "81b1a3f55887a611", size: new __O(0, 1) };
-    getValue(): Calculator_Value$Client { return new Calculator_Value$Client(__S.getInterfaceClientOrNull(0, this)); }
+    getValue(): Calculator_Value$Client { return new Calculator_Value$Client(__S.getInterfaceClientOrNullAt(0, this)); }
     setValue(value: Calculator_Value$Client): void { __S.setInterfacePointer(this.segment.message.addCap(value.client), __S.getPointer(0, this)); }
     toString(): string { return "Calculator_Evaluate$Results_" + super.toString(); }
 }
@@ -226,7 +226,7 @@ export class Calculator_DefFunction$Params extends __S {
 }
 export class Calculator_DefFunction$Results extends __S {
     static readonly _capnp = { displayName: "defFunction$Results", id: "8d24f465047cd6c8", size: new __O(0, 1) };
-    getFunc(): Calculator_Function$Client { return new Calculator_Function$Client(__S.getInterfaceClientOrNull(0, this)); }
+    getFunc(): Calculator_Function$Client { return new Calculator_Function$Client(__S.getInterfaceClientOrNullAt(0, this)); }
     setFunc(value: Calculator_Function$Client): void { __S.setInterfacePointer(this.segment.message.addCap(value.client), __S.getPointer(0, this)); }
     toString(): string { return "Calculator_DefFunction$Results_" + super.toString(); }
 }
@@ -250,7 +250,7 @@ export class Calculator_GetOperator$Params extends __S {
 }
 export class Calculator_GetOperator$Results extends __S {
     static readonly _capnp = { displayName: "getOperator$Results", id: "d18fbb7763c08c20", size: new __O(0, 1) };
-    getFunc(): Calculator_Function$Client { return new Calculator_Function$Client(__S.getInterfaceClientOrNull(0, this)); }
+    getFunc(): Calculator_Function$Client { return new Calculator_Function$Client(__S.getInterfaceClientOrNullAt(0, this)); }
     setFunc(value: Calculator_Function$Client): void { __S.setInterfacePointer(this.segment.message.addCap(value.client), __S.getPointer(0, this)); }
     toString(): string { return "Calculator_GetOperator$Results_" + super.toString(); }
 }
