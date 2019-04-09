@@ -73,7 +73,7 @@ export class TCPTransport implements Transport {
   }
 
   readable(): Promise<boolean> {
-    return new Promise(resolve => this.socket.on("readable", resolve));
+    return new Promise(resolve => this.socket.once("readable", resolve));
   }
 
   close() {
