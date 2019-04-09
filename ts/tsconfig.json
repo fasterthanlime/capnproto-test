@@ -2,7 +2,9 @@
   "compileOnSave": true,
   "compilerOptions": {
     "outDir": "lib",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "target": "es2017",
+    "module": "commonjs"
   },
   "extends": "./configs/tsconfig-base",
   "include": [

@@ -162,3 +162,47 @@ export async function doClient() {
 
   process.exit(0);
 }
+
+async function stressTest(calc: Calculator$Client) {
+  for (let k = 0; k < 3; k++) {
+    for (let j = 0; j <= 10; j++) {
+      let numCalls = j * 128;
+
+      let t1 = Date.now();
+      let add = calc
+        .getOperator(p => p.setOp(Calculator.Operator.ADD))
+        .getFunc();
+      let lhs = calc
+        .evaluate(params => params.initExpression().setLiteral(0))
+        .getValue();
+
+      let state = { last: 0 };
+
+      for (let i = 0; i < numCalls; i++) {
+        state.last = i;
+        lhs = calc
+          .evaluate(params => {
+            const c = params.initExpression().initCall();
+            c.setFunction(add);
+            const pp = c.initParams(2);
+            pp.get(0).setPreviousResult(lhs);
+            pp.get(1).setLiteral(i);
+          })
+          .getValue();
+      }
+
+      let t2 = Date.now();
+      const result = (await lhs.read().promise()).getValue();
+      let t3 = Date.now();
+
+      let sendTime = (t2 - t1).toFixed();
+      let recvTime = (t3 - t2).toFixed();
+
+      let elapsed = Date.now() - t1;
+      console.log(
+        `(send ${sendTime}ms, recv ${recvTime}ms) ${numCalls} recursion = `,
+        result,
+      );
+    }
+  }
+}

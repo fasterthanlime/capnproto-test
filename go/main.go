@@ -14,7 +14,11 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 	capnp "zombiezen.com/go/capnproto2"
 	"zombiezen.com/go/capnproto2/rpc"
+	"zombiezen.com/go/capnproto2/server"
 	capnprpc "zombiezen.com/go/capnproto2/std/capnp/rpc"
+
+	"net/http"
+	_ "net/http/pprof"
 )
 
 var (
@@ -108,6 +112,8 @@ func (cs *calculatorServer) evaluate(ctx context.Context, expr calculator.Calcul
 }
 
 func (cs *calculatorServer) Evaluate(call calculator.Calculator_evaluate) error {
+	server.Ack(call.Options)
+
 	expr, err := call.Params.Expression()
 	if err != nil {
 		return err
@@ -195,6 +201,10 @@ func (t *debuggingTransport) RecvMessage(ctx context.Context) (capnprpc.Message,
 var _ rpc.Transport = (*debuggingTransport)(nil)
 
 func doServer() {
+	go func() {
+		log.Println(http.ListenAndServe("localhost:9495", nil))
+	}()
+
 	address := "127.0.0.1:9494"
 
 	l, err := net.Listen("tcp", address)

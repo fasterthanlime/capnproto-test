@@ -54,7 +54,7 @@ export class TCPTransport implements Transport {
     ]);
 
     const msg = new Message(messageBuf, false /* packed */).getRoot(RPCMessage);
-    dumpRPCMessage(">>", msg);
+    dumpRPCMessage("<<", msg);
     return msg;
   }
 
