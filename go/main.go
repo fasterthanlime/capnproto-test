@@ -62,19 +62,10 @@ func (cs *calculatorServer) DefFunction(call calculator.Calculator_defFunction) 
 	return errors.New("defFunction: stub!")
 }
 
-func (cs *calculatorServer) Evaluate(call calculator.Calculator_evaluate) error {
-	ctx := call.Ctx
-
-	expr, err := call.Params.Expression()
-	if err != nil {
-		return err
-	}
-
+func (cs *calculatorServer) evaluate(ctx context.Context, expr calculator.Calculator_Expression) (float64, error) {
 	switch expr.Which() {
 	case calculator.Calculator_Expression_Which_literal:
-		vs := valueServer{value: expr.Literal()}
-		call.Results.SetValue(calculator.Calculator_Value_ServerToClient(vs))
-		return nil
+		return expr.Literal(), nil
 	case calculator.Calculator_Expression_Which_call:
 		ecall := expr.Call()
 
@@ -90,33 +81,38 @@ func (cs *calculatorServer) Evaluate(call calculator.Calculator_evaluate) error 
 
 			for i := 0; i < cparams.Len(); i++ {
 				cparam := cparams.At(i)
-				switch cparam.Which() {
-				case calculator.Calculator_Expression_Which_literal:
-					pparams.Set(i, cparam.Literal())
-				case calculator.Calculator_Expression_Which_previousResult:
-					expr := cparam.PreviousResult()
-					ee := expr.Read(ctx, func(params calculator.Calculator_Value_read_Params) error { return nil })
-					results, err := ee.Struct()
-					if err != nil {
-						return err
-					}
-					pparams.Set(i, results.Value())
-				default:
-					return errors.Errorf("Calling function with %v param: unsupported", cparam.Which())
+				val, err := cs.evaluate(ctx, cparam)
+				if err != nil {
+					return err
 				}
+				pparams.Set(i, val)
 			}
+
 			return nil
 		}).Struct()
 		if err != nil {
-			return err
+			return 0, err
 		}
 
-		vs := valueServer{value: cres.Value()}
-		call.Results.SetValue(calculator.Calculator_Value_ServerToClient(vs))
-		return nil
+		return cres.Value(), nil
 	default:
-		return errors.Errorf("don't know how to evaluate %s yet", expr.Which())
+		return 0, errors.Errorf("don't know how to evaluate %s yet", expr.Which())
 	}
+}
+
+func (cs *calculatorServer) Evaluate(call calculator.Calculator_evaluate) error {
+	expr, err := call.Params.Expression()
+	if err != nil {
+		return err
+	}
+
+	val, err := cs.evaluate(call.Ctx, expr)
+	if err != nil {
+		return err
+	}
+
+	call.Results.SetValue(calculator.Calculator_Value_ServerToClient(valueServer{value: val}))
+	return nil
 }
 
 type functionServer struct {
@@ -127,29 +123,36 @@ func (fs *functionServer) Call(call calculator.Calculator_Function_call) error {
 	return fs.call(call)
 }
 
-func (cs *calculatorServer) GetOperator(call calculator.Calculator_getOperator) error {
-	log.Printf("getOperator called! op = %v", call.Params.Op())
-
-	switch call.Params.Op() {
-	case calculator.Calculator_Operator_add:
-		fs := &functionServer{
-			call: func(call calculator.Calculator_Function_call) error {
-				var res float64
-				cparams, err := call.Params.Params()
-				if err != nil {
-					return err
-				}
-				for i := 0; i < cparams.Len(); i++ {
-					res += cparams.At(i)
-				}
-				call.Results.SetValue(res)
-				return nil
-			},
-		}
-		call.Results.SetFunc(calculator.Calculator_Function_ServerToClient(fs))
-	default:
-		return errors.New("Only the + operator is supported right now")
+func makeOperator(f func(a float64, b float64) float64) *functionServer {
+	return &functionServer{
+		call: func(call calculator.Calculator_Function_call) error {
+			cparams, err := call.Params.Params()
+			if err != nil {
+				return err
+			}
+			if cparams.Len() != 2 {
+				return errors.Errorf("expected %d arguments, got %d", 2, cparams.Len())
+			}
+			a, b := cparams.At(0), cparams.At(1)
+			call.Results.SetValue(f(a, b))
+			return nil
+		},
 	}
+}
+
+var operators = map[calculator.Calculator_Operator]*functionServer{
+	calculator.Calculator_Operator_add:      makeOperator(func(a float64, b float64) float64 { return a + b }),
+	calculator.Calculator_Operator_subtract: makeOperator(func(a float64, b float64) float64 { return a - b }),
+	calculator.Calculator_Operator_multiply: makeOperator(func(a float64, b float64) float64 { return a * b }),
+	calculator.Calculator_Operator_divide:   makeOperator(func(a float64, b float64) float64 { return a / b }),
+}
+
+func (cs *calculatorServer) GetOperator(call calculator.Calculator_getOperator) error {
+	op, ok := operators[call.Params.Op()]
+	if !ok {
+		return errors.Errorf("Operator not found")
+	}
+	call.Results.SetFunc(calculator.Calculator_Function_ServerToClient(op))
 	return nil
 }
 

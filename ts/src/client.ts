@@ -31,6 +31,12 @@ import {
   Calculator$Server$Target,
 } from "./calculator.capnp";
 
+function assertEq<T>(actual: T, expected: T) {
+  if (actual !== expected) {
+    throw new Error(`expected ${expected}, got ${actual}`);
+  }
+}
+
 export async function doClient() {
   const socket = await connect("127.0.0.1:9494");
   const transport = new TCPTransport(socket);
@@ -38,149 +44,67 @@ export async function doClient() {
   const client = await conn.bootstrap();
   const calc = new Calculator$Client(client);
 
-  async function doLiteral() {
-    // const calc = new Calculator$Client(client);
-    class MyValue implements Calculator_Value$Server$Target {
-      constructor(public value: number) {}
-
-      async read(
-        _params: Calculator_Value_Read$Params,
-        results: Calculator_Value_Read$Results,
-      ) {
-        results.setValue(this.value);
-      }
-    }
-
-    class MyCalculator implements Calculator$Server$Target {
-      async evaluate(
-        params: Calculator_Evaluate$Params,
-        results: Calculator_Evaluate$Results,
-      ) {
-        const expr = params.getExpression();
-        if (!expr.isLiteral()) {
-          throw new Error(`evaluating non-literals: stub!`);
-        }
-        results.setValue(
-          new Calculator_Value$Server(new MyValue(expr.getLiteral())).client(),
-        );
-      }
-      async getOperator() {
-        throw new Error(`getOperator: stub!`);
-      }
-      async defFunction() {
-        throw new Error(`defFunction: stub!`);
-      }
-    }
-    const calc = new Calculator$Server(new MyCalculator()).client();
-
+  {
+    // Make a request that just evaluates the literal value 123.
+    //
+    // What's interesting here is that evaluate() returns a "Value", which is
+    // another interface and therefore points back to an object living on the
+    // server.  We then have to call read() on that object to read it.
+    // However, even though we are making two RPC's, this block executes in
+    // *one* network round trip because of promise pipelining:  we do not wait
+    // for the first call to complete before we send the second call to the
+    // server.
+    console.log("Evaluating a literal...");
     const req = calc
       .evaluate(params => params.initExpression().setLiteral(123))
       .getValue()
       .read()
       .promise();
-    console.log(`(doLiteral) result = ${(await req).getValue()}`);
+    assertEq((await req).getValue(), 123);
+    console.log("PASS!");
   }
 
-  async function doCall() {
-    let req = calc
-      .evaluate(params => {
-        let expr = params.initExpression();
-        let call = expr.initCall();
-        call.setFunction(
-          calc
-            .getOperator(params => {
-              params.setOp(Calculator.Operator.ADD);
-            })
-            .getFunc(),
-        );
-        let args = call.initParams(2);
-        args.get(0).setLiteral(3);
-        args.get(1).setLiteral(4);
-      })
-      .getValue()
-      .read()
-      .promise();
+  {
+    // Make a request to evaluate 123 + 45 - 67.
+    //
+    // The Calculator interface requires that we first call getOperator() to
+    // get the addition and subtraction functions, then call evaluate() to use
+    // them.  But, once again, we can get both functions, call evaluate(), and
+    // then read() the result -- four RPCs -- in the time of *one* network
+    // round trip, because of promise pipelining.
+    console.log("Using add and subtract...");
 
-    console.log(`(doCall) 3 + 4 = ${(await req).getValue()}`);
-  }
-
-  async function doComplexCall() {
+    // Get the "add" function from the server
     let add = calc
-      .getOperator(params => {
-        params.setOp(Calculator.Operator.ADD);
-      })
+      .getOperator(params => params.setOp(Calculator.Operator.ADD))
       .getFunc();
 
-    let req = calc
-      .evaluate(params => {
-        const onePlusTwo = calc
-          .evaluate(params => {
-            let expr = params.initExpression();
-            let call = expr.initCall();
-            call.setFunction(add);
-            let args = call.initParams(2);
-            args.get(0).setLiteral(1);
-            args.get(1).setLiteral(2);
-          })
-          .getValue();
+    // Get the "subtract" function from the server
+    let subtract = calc
+      .getOperator(params => params.setOp(Calculator.Operator.SUBTRACT))
+      .getFunc();
 
-        let expr = params.initExpression();
-        let call = expr.initCall();
-        call.setFunction(add);
-        let args = call.initParams(2);
-        args.get(0).setPreviousResult(onePlusTwo);
-        args.get(1).setLiteral(4);
-      })
-      .getValue()
-      .read()
-      .promise();
-
-    console.log(`(doComplexCall) (1 + 2) + 4 = ${(await req).getValue()}`);
-  }
-
-  async function doUserDef() {
+    // Build the request to evaluate 123 + 45 - 67
     const req = calc
       .evaluate(params => {
-        let expr = params.initExpression();
-        let call = expr.initCall();
+        const subtractCall = params.initExpression().initCall();
+        subtractCall.setFunction(subtract);
+        const subtractParams = subtractCall.initParams(2);
+        subtractParams.get(1).setLiteral(67);
 
-        // define a new function that lives on the client
-        const pow = new Calculator_Function$Server({
-          call: async (params, results) => {
-            const numArgs = params.getParams().getLength();
-            if (numArgs !== 2) {
-              throw new Error(`pow(x, y) expects 2 argument, got ${numArgs}`);
-            }
-            const [x, y] = params.getParams().toArray();
-            results.setValue(Math.pow(x, y));
-            return;
-          },
-        });
-
-        // ask the server to use our function (hosted on the client)
-        call.setFunction(pow.client());
-        let args = call.initParams(2);
-        args.get(0).setLiteral(2);
-        args.get(1).setLiteral(8);
+        const addCall = subtractParams.get(0).initCall();
+        addCall.setFunction(add);
+        const addParams = addCall.initParams(2);
+        addParams.get(0).setLiteral(123);
+        addParams.get(1).setLiteral(45);
       })
       .getValue()
       .read()
       .promise();
 
-    console.log(`(call to user-def) 2^8 = `, (await req).getValue());
+    assertEq((await req).getValue(), 101);
+    console.log("PASS!");
   }
-
-  await doLiteral();
-  console.log("=================");
-
-  // await doCall();
-  // console.log("=================");
-
-  // await doComplexCall();
-  // console.log("=================");
-
-  // await doUserDef();
-  // console.log("=================");
 
   process.exit(0);
 }
