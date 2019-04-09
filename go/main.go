@@ -62,11 +62,38 @@ func (vs valueServer) Read(call calculator.Calculator_Value_read) error {
 
 type calculatorServer struct{}
 
-func (cs *calculatorServer) DefFunction(call calculator.Calculator_defFunction) error {
-	return errors.New("defFunction: stub!")
+func (cs *calculatorServer) DefFunction(defCall calculator.Calculator_defFunction) error {
+	defBody, err := defCall.Params.Body()
+	if err != nil {
+		return err
+	}
+
+	defParamCount := defCall.Params.ParamCount()
+
+	return defCall.Results.SetFunc(calculator.Calculator_Function_ServerToClient(&functionServer{
+		call: func(call calculator.Calculator_Function_call) error {
+			server.Ack(call.Options)
+
+			callParams, err := call.Params.Params()
+			if err != nil {
+				return err
+			}
+			if int64(callParams.Len()) != int64(defParamCount) {
+				return errors.Errorf("expected %d arguments, got %d", defParamCount, callParams.Len())
+			}
+
+			val, err := cs.evaluate(call.Ctx, defBody, &call.Params)
+			if err != nil {
+				return err
+			}
+
+			call.Results.SetValue(val)
+			return nil
+		},
+	}))
 }
 
-func (cs *calculatorServer) evaluate(ctx context.Context, expr calculator.Calculator_Expression) (float64, error) {
+func (cs *calculatorServer) evaluate(ctx context.Context, expr calculator.Calculator_Expression, callParams *calculator.Calculator_Function_call_Params) (float64, error) {
 	switch expr.Which() {
 	case calculator.Calculator_Expression_Which_literal:
 		return expr.Literal(), nil
@@ -77,6 +104,22 @@ func (cs *calculatorServer) evaluate(ctx context.Context, expr calculator.Calcul
 			return 0, err
 		}
 		return res.Value(), nil
+	case calculator.Calculator_Expression_Which_parameter:
+		pr := expr.Parameter()
+		if callParams == nil {
+			return 0, errors.Errorf("parameter %d used outside of function context", pr)
+		}
+
+		l, err := callParams.Params()
+		if err != nil {
+			return 0, err
+		}
+
+		if int(pr) >= l.Len() {
+			return 0, errors.Errorf("parameter %d used, but only have %d parameters", pr, l.Len())
+		}
+
+		return l.At(int(pr)), err
 	case calculator.Calculator_Expression_Which_call:
 		ecall := expr.Call()
 
@@ -92,7 +135,7 @@ func (cs *calculatorServer) evaluate(ctx context.Context, expr calculator.Calcul
 
 			for i := 0; i < cparams.Len(); i++ {
 				cparam := cparams.At(i)
-				val, err := cs.evaluate(ctx, cparam)
+				val, err := cs.evaluate(ctx, cparam, callParams)
 				if err != nil {
 					return err
 				}
@@ -119,7 +162,7 @@ func (cs *calculatorServer) Evaluate(call calculator.Calculator_evaluate) error 
 		return err
 	}
 
-	val, err := cs.evaluate(call.Ctx, expr)
+	val, err := cs.evaluate(call.Ctx, expr, nil)
 	if err != nil {
 		return err
 	}
