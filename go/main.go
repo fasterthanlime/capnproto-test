@@ -66,6 +66,13 @@ func (cs *calculatorServer) evaluate(ctx context.Context, expr calculator.Calcul
 	switch expr.Which() {
 	case calculator.Calculator_Expression_Which_literal:
 		return expr.Literal(), nil
+	case calculator.Calculator_Expression_Which_previousResult:
+		pr := expr.PreviousResult()
+		res, err := pr.Read(ctx, func(params calculator.Calculator_Value_read_Params) error { return nil }).Struct()
+		if err != nil {
+			return 0, err
+		}
+		return res.Value(), nil
 	case calculator.Calculator_Expression_Which_call:
 		ecall := expr.Call()
 

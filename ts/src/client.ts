@@ -61,7 +61,7 @@ export async function doClient() {
       .read()
       .promise();
     assertEq((await req).getValue(), 123);
-    console.log("PASS!");
+    console.log("PASS");
   }
 
   {
@@ -103,7 +103,61 @@ export async function doClient() {
       .promise();
 
     assertEq((await req).getValue(), 101);
-    console.log("PASS!");
+    console.log("PASS");
+  }
+
+  {
+    // Make a request to evaluate 4 * 6, then use the result in two more
+    // requests that add 3 and 5.
+    //
+    // Since evaluate() returns its result wrapped in a `Value`, we can pass
+    // that `Value` back to the server in subsequent requests before the first
+    // `evaluate()` has actually returned.  Thus, this example again does only
+    // one network round trip.
+    console.log("Pipeline eval() calls...");
+
+    let add = calc
+      .getOperator(params => params.setOp(Calculator.Operator.ADD))
+      .getFunc();
+    let multiply = calc
+      .getOperator(params => params.setOp(Calculator.Operator.MULTIPLY))
+      .getFunc();
+
+    // Build the request to evaluate 4*6
+    let multResult = calc
+      .evaluate(params => {
+        const call = params.initExpression().initCall();
+        call.setFunction(multiply);
+        const multParams = call.initParams(2);
+        multParams.get(0).setLiteral(4);
+        multParams.get(1).setLiteral(6);
+      })
+      .getValue();
+
+    let add3Result = calc
+      .evaluate(params => {
+        const call = params.initExpression().initCall();
+        call.setFunction(add);
+        const addParams = call.initParams(2);
+        addParams.get(0).setPreviousResult(multResult);
+        addParams.get(1).setLiteral(3);
+      })
+      .getValue();
+
+    let add5Result = calc
+      .evaluate(params => {
+        const call = params.initExpression().initCall();
+        call.setFunction(add);
+        const addParams = call.initParams(2);
+        addParams.get(0).setPreviousResult(multResult);
+        addParams.get(1).setLiteral(5);
+      })
+      .getValue();
+
+    assertEq((await add3Result.read().promise()).getValue(), 27);
+    assertEq((await add5Result.read().promise()).getValue(), 29);
+
+    console.log("PASS");
   }
 
   process.exit(0);
